@@ -36,6 +36,8 @@ const DEFAULT_SETTINGS = {
   matchProbability: 0.3, // 30% probability of matches
   winThreshold: 90, // percentage threshold for winning (default 90%)
   lossThreshold: 70, // percentage threshold for losing (default 70%)
+  enablePosition: true, // enable position modality
+  enableAudio: true, // enable audio modality
 };
 
 const loadSettings = async () => {
@@ -280,11 +282,28 @@ const StartScreen = ({ settings, onStartGame }) => {
     onStartGame(settings);
   };
 
+  const getModalityText = () => {
+    if (settings.enablePosition && settings.enableAudio) {
+      return 'Position + Audio';
+    } else if (settings.enablePosition) {
+      return 'Position Only';
+    } else if (settings.enableAudio) {
+      return 'Audio Only';
+    } else {
+      return 'No Modalities Enabled';
+    }
+  };
+
   return (
     <View style={styles.screenContainer}>
       <Text style={styles.headerText}>Current Level: {settings.currentLevel}-Back</Text>
       <Text style={styles.bodyText}>Grid Size: {settings.gridSize}x{settings.gridSize}</Text>
-      <TouchableOpacity style={styles.startButton} onPress={handleStartGame}>
+      <Text style={styles.bodyText}>Modalities: {getModalityText()}</Text>
+      <TouchableOpacity 
+        style={[styles.startButton, (!settings.enablePosition && !settings.enableAudio) && styles.disabledButton]} 
+        onPress={handleStartGame}
+        disabled={!settings.enablePosition && !settings.enableAudio}
+      >
         <Text style={styles.buttonText}>Start Game</Text>
       </TouchableOpacity>
     </View>
@@ -305,10 +324,19 @@ const InstructionsScreen = () => (
 
       <Text style={styles.instructionsTitle}>Game Setup</Text>
       <Text style={styles.instructionsText}>
-        • A colored square appears in a grid position{'\n'}
-        • A letter is spoken aloud{'\n'}
+        • A colored square appears in a grid position (if position modality is enabled){'\n'}
+        • A letter is spoken aloud (if audio modality is enabled){'\n'}
         • Both happen simultaneously every few seconds{'\n'}
         • You must remember both the position and the letter
+      </Text>
+
+      <Text style={styles.instructionsTitle}>Modalities</Text>
+      <Text style={styles.instructionsText}>
+        You can play with different combinations of modalities:{'\n'}
+        • Position only: Remember and match grid positions{'\n'}
+        • Audio only: Remember and match spoken letters{'\n'}
+        • Both: Remember and match both position and audio{'\n'}
+        • Change these in Settings
       </Text>
 
       <Text style={styles.instructionsTitle}>How to Respond</Text>
@@ -316,13 +344,14 @@ const InstructionsScreen = () => (
         • Press "Position" if the square appears in the SAME position as N trials ago{'\n'}
         • Press "Audio" if you hear the SAME letter as N trials ago{'\n'}
         • You can press both buttons if both position AND letter match{'\n'}
-        • Don't press anything if neither matches
+        • Don't press anything if neither matches{'\n'}
+        • Only enabled modality buttons will be shown
       </Text>
 
       <Text style={styles.instructionsTitle}>Tips</Text>
       <Text style={styles.instructionsText}>
         • Start with lower N values (1-3) to get comfortable{'\n'}
-        • Focus on one type of match at first (position OR audio){'\n'}
+        • Try single modality first to focus on one type of memory{'\n'}
         • Don't worry about mistakes - this is challenging for everyone!{'\n'}
         • Regular practice can improve your working memory
       </Text>
@@ -331,7 +360,7 @@ const InstructionsScreen = () => (
 );
 
 // Statistics Screen
-const StatisticsScreen = ({ refreshTrigger }) => {
+const StatisticsScreen = ({ refreshTrigger, currentSettings }) => {
   const [gameStats, setGameStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showLast7Days, setShowLast7Days] = useState(false);
@@ -362,19 +391,42 @@ const StatisticsScreen = ({ refreshTrigger }) => {
     return date.toLocaleDateString();
   };
 
-  const prepareChartData = () => {
-    if (gameStats.length === 0) return null;
+  const getModalityText = (stat) => {
+    if (stat.enablePosition && stat.enableAudio) {
+      return 'Position + Audio';
+    } else if (stat.enablePosition) {
+      return 'Position Only';
+    } else if (stat.enableAudio) {
+      return 'Audio Only';
+    } else {
+      return 'Unknown';
+    }
+  };
 
-    // Filter stats if needed
-    let filteredStats = gameStats;
+  // Filter stats to only show games with matching modality settings
+  const getFilteredStats = () => {
+    if (!currentSettings) return gameStats;
+    
+    return gameStats.filter(stat => 
+      stat.enablePosition === currentSettings.enablePosition && 
+      stat.enableAudio === currentSettings.enableAudio
+    );
+  };
+
+  const prepareChartData = () => {
+    const filteredStats = getFilteredStats();
+    if (filteredStats.length === 0) return null;
+
+    // Filter stats by date if needed
+    let dateFilteredStats = filteredStats;
     if (showLast7Days) {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      filteredStats = gameStats.filter(stat => new Date(stat.date) >= sevenDaysAgo);
+      dateFilteredStats = filteredStats.filter(stat => new Date(stat.date) >= sevenDaysAgo);
     }
 
     // Sort stats by date
-    const sortedStats = [...filteredStats].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sortedStats = [...dateFilteredStats].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     // Get unique dates and calculate averages and maxes
     const dateMap = new Map();
@@ -416,18 +468,19 @@ const StatisticsScreen = ({ refreshTrigger }) => {
   };
 
   const prepareAccuracyChartData = () => {
-    if (gameStats.length === 0) return null;
+    const filteredStats = getFilteredStats();
+    if (filteredStats.length === 0) return null;
 
-    // Filter stats if needed
-    let filteredStats = gameStats;
+    // Filter stats by date if needed
+    let dateFilteredStats = filteredStats;
     if (showLast7Days) {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      filteredStats = gameStats.filter(stat => new Date(stat.date) >= sevenDaysAgo);
+      dateFilteredStats = filteredStats.filter(stat => new Date(stat.date) >= sevenDaysAgo);
     }
 
     // Sort stats by date
-    const sortedStats = [...filteredStats].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sortedStats = [...dateFilteredStats].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     // Get unique dates and calculate average accuracies
     const dateMap = new Map();
@@ -463,7 +516,8 @@ const StatisticsScreen = ({ refreshTrigger }) => {
   const screenWidth = Dimensions.get('window').width;
 
   // Calculate global maximum difficulty for consistent y-axis scaling
-  const globalMaxDifficulty = gameStats.length > 0 ? Math.max(...gameStats.map(stat => stat.difficulty)) : 1;
+  const filteredStats = getFilteredStats();
+  const globalMaxDifficulty = filteredStats.length > 0 ? Math.max(...filteredStats.map(stat => stat.difficulty)) : 1;
 
   if (loading) {
     return (
@@ -481,12 +535,22 @@ const StatisticsScreen = ({ refreshTrigger }) => {
     >
       <View style={styles.statsHeader}>
         <Text style={styles.headerText}>Your Progress</Text>
+        {currentSettings && (
+          <Text style={styles.modalityInfo}>
+            {getModalityText(currentSettings)} Mode
+          </Text>
+        )}
       </View>
 
-      {gameStats.length === 0 ? (
+      {filteredStats.length === 0 ? (
         <View style={styles.emptyStatsContainer}>
-          <Text style={styles.emptyStatsText}>No games played yet!</Text>
-          <Text style={styles.emptyStatsSubtext}>Play some games to see your progress here.</Text>
+          <Text style={styles.emptyStatsText}>No games played with current modality settings!</Text>
+          <Text style={styles.emptyStatsSubtext}>
+            {currentSettings ? 
+              `Play some games with ${getModalityText(currentSettings)} mode to see your progress here.` :
+              'Play some games to see your progress here.'
+            }
+          </Text>
         </View>
       ) : (
         <>
@@ -495,24 +559,24 @@ const StatisticsScreen = ({ refreshTrigger }) => {
             <Text style={styles.sectionTitle}>Summary</Text>
             <View style={styles.summaryGrid}>
               <View style={styles.summaryItem}>
-                <Text style={styles.summaryNumber}>{gameStats.length}</Text>
+                <Text style={styles.summaryNumber}>{filteredStats.length}</Text>
                 <Text style={styles.summaryLabel}>Games Played</Text>
               </View>
               <View style={styles.summaryItem}>
                 <Text style={styles.summaryNumber}>
-                  {Math.max(...gameStats.map(s => s.difficulty))}
+                  {Math.max(...filteredStats.map(s => s.difficulty))}
                 </Text>
                 <Text style={styles.summaryLabel}>Highest Level</Text>
               </View>
               <View style={styles.summaryItem}>
                 <Text style={styles.summaryNumber}>
-                  {(gameStats.reduce((sum, s) => sum + s.accuracy, 0) / gameStats.length).toFixed(1)}%
+                  {(filteredStats.reduce((sum, s) => sum + s.accuracy, 0) / filteredStats.length).toFixed(1)}%
                 </Text>
                 <Text style={styles.summaryLabel}>Avg Accuracy</Text>
               </View>
               <View style={styles.summaryItem}>
                 <Text style={styles.summaryNumber}>
-                  {Math.max(...gameStats.map(s => s.accuracy)).toFixed(1)}%
+                  {Math.max(...filteredStats.map(s => s.accuracy)).toFixed(1)}%
                 </Text>
                 <Text style={styles.summaryLabel}>Best Accuracy</Text>
               </View>
@@ -579,12 +643,10 @@ const StatisticsScreen = ({ refreshTrigger }) => {
             </View>
           )}
 
-
-
           {/* Recent Games */}
           <View style={styles.recentGamesContainer}>
             <Text style={styles.sectionTitle}>Recent Games</Text>
-            {gameStats.slice(-10).reverse().map((stat, index) => (
+            {filteredStats.slice(-10).reverse().map((stat, index) => (
               <View key={index} style={styles.gameStatItem}>
                 <View style={styles.gameStatHeader}>
                   <Text style={styles.gameStatDate}>{formatDate(stat.date)}</Text>
@@ -594,7 +656,9 @@ const StatisticsScreen = ({ refreshTrigger }) => {
                   <Text style={styles.gameStatAccuracy}>
                     Accuracy: {stat.accuracy.toFixed(1)}%
                   </Text>
-                  <Text style={styles.gameStatResult}>
+                </View>
+                <View style={styles.gameStatResult}>
+                  <Text style={styles.gameStatResultText}>
                     {stat.accuracy >= 90 ? '🎉 Win' : stat.accuracy <= 70 ? '😔 Loss' : '⚖️ Neutral'}
                   </Text>
                 </View>
@@ -622,6 +686,16 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
     // If current level is being changed, ensure game length is at least equal to it
     if (key === 'currentLevel' && newSettings.gameLength < value) {
       newSettings = { ...newSettings, gameLength: value };
+    }
+
+    // Prevent disabling both modalities
+    if (key === 'enablePosition' && !value && !newSettings.enableAudio) {
+      Alert.alert('Invalid Setting', 'At least one modality must be enabled.');
+      return;
+    }
+    if (key === 'enableAudio' && !value && !newSettings.enablePosition) {
+      Alert.alert('Invalid Setting', 'At least one modality must be enabled.');
+      return;
     }
 
     onSettingsChange(newSettings);
@@ -761,6 +835,38 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Modality Settings */}
+      <View style={styles.settingItem}>
+        <Text style={styles.settingLabel}>Position Modality: {settings.enablePosition ? 'ON' : 'OFF'}</Text>
+        <TouchableOpacity
+          style={[styles.toggleButton, settings.enablePosition && styles.toggleButtonActive]}
+          onPress={() => updateSetting('enablePosition', !settings.enablePosition)}
+        >
+          <Text style={[styles.toggleButtonText, settings.enablePosition && styles.toggleButtonTextActive]}>
+            {settings.enablePosition ? 'ON' : 'OFF'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.settingItem}>
+        <Text style={styles.settingLabel}>Audio Modality: {settings.enableAudio ? 'ON' : 'OFF'}</Text>
+        <TouchableOpacity
+          style={[styles.toggleButton, settings.enableAudio && styles.toggleButtonActive]}
+          onPress={() => updateSetting('enableAudio', !settings.enableAudio)}
+        >
+          <Text style={[styles.toggleButtonText, settings.enableAudio && styles.toggleButtonTextActive]}>
+            {settings.enableAudio ? 'ON' : 'OFF'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Warning if both modalities are disabled */}
+      {!settings.enablePosition && !settings.enableAudio && (
+        <View style={styles.warningContainer}>
+          <Text style={styles.warningText}>⚠️ At least one modality must be enabled!</Text>
+        </View>
+      )}
 
       <TouchableOpacity
         style={styles.resetButton}
@@ -982,39 +1088,48 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
 
           if (newCount <= settings.currentLevel) {
             // First n trials: uniform random
-            newPosition = Math.floor(Math.random() * (settings.gridSize * settings.gridSize));
-            newLetter = GAME_LETTERS[Math.floor(Math.random() * GAME_LETTERS.length)];
+            newPosition = settings.enablePosition ? Math.floor(Math.random() * (settings.gridSize * settings.gridSize)) : null;
+            newLetter = settings.enableAudio ? GAME_LETTERS[Math.floor(Math.random() * GAME_LETTERS.length)] : null;
           } else {
             // Subsequent trials: controlled probability
             const random = Math.random();
             const letterRandom = Math.random();
 
             // Position generation with controlled probability
-            const nBackStimulus = prev[newCount - settings.currentLevel - 1];
-            if (random < settings.matchProbability) {
-              // With probability p, select the same position as n trials ago
-              newPosition = nBackStimulus.position;
+            if (settings.enablePosition) {
+              const nBackStimulus = prev[newCount - settings.currentLevel - 1];
+              if (random < settings.matchProbability) {
+                // With probability p, select the same position as n trials ago
+                newPosition = nBackStimulus.position;
+              } else {
+                // With probability 1-p, select uniform random position that is NOT the n-back position
+                const totalPositions = settings.gridSize * settings.gridSize;
+                let randomPosition;
+                do {
+                  randomPosition = Math.floor(Math.random() * totalPositions);
+                } while (randomPosition === nBackStimulus.position);
+                newPosition = randomPosition;
+              }
             } else {
-              // With probability 1-p, select uniform random position that is NOT the n-back position
-              const totalPositions = settings.gridSize * settings.gridSize;
-              let randomPosition;
-              do {
-                randomPosition = Math.floor(Math.random() * totalPositions);
-              } while (randomPosition === nBackStimulus.position);
-              newPosition = randomPosition;
+              newPosition = null;
             }
 
             // Letter generation with controlled probability
-            if (letterRandom < settings.matchProbability) {
-              // With probability p, select the same letter as n trials ago
-              newLetter = nBackStimulus.letter;
+            if (settings.enableAudio) {
+              const nBackStimulus = prev[newCount - settings.currentLevel - 1];
+              if (letterRandom < settings.matchProbability) {
+                // With probability p, select the same letter as n trials ago
+                newLetter = nBackStimulus.letter;
+              } else {
+                // With probability 1-p, select uniform random letter that is NOT the n-back letter
+                let randomLetter;
+                do {
+                  randomLetter = GAME_LETTERS[Math.floor(Math.random() * GAME_LETTERS.length)];
+                } while (randomLetter === nBackStimulus.letter);
+                newLetter = randomLetter;
+              }
             } else {
-              // With probability 1-p, select uniform random letter that is NOT the n-back letter
-              let randomLetter;
-              do {
-                randomLetter = GAME_LETTERS[Math.floor(Math.random() * GAME_LETTERS.length)];
-              } while (randomLetter === nBackStimulus.letter);
-              newLetter = randomLetter;
+              newLetter = null;
             }
           }
 
@@ -1028,14 +1143,18 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
           setActiveCell(newStimulus);
           setCurrentLetter(newLetter);
 
-          // Play the letter sound
-          playLetterSound(newLetter);
+          // Play the letter sound only if audio is enabled
+          if (settings.enableAudio && newLetter) {
+            playLetterSound(newLetter);
+          }
 
           return [...prev, newStimulus];
         });
 
-        // Play the letter sound
-        playLetterSound(newLetter);
+        // Play the letter sound only if audio is enabled
+        if (settings.enableAudio && newLetter) {
+          playLetterSound(newLetter);
+        }
 
         return newCount;
       });
@@ -1098,43 +1217,47 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
       let tempPositionTP = 0, tempPositionFP = 0, tempPositionTN = 0, tempPositionFN = 0;
       let tempAudioTP = 0, tempAudioFP = 0, tempAudioTN = 0, tempAudioFN = 0;
 
-      // Calculate position scores for all trials where matching is possible
-      console.log('Position responses:', userResponses);
-      for (let i = settings.currentLevel; i < gameHistory.length; i++) {
-        const currentStimulus = gameHistory[i];
-        const nBackStimulus = gameHistory[i - settings.currentLevel];
-        const isActuallyMatch = currentStimulus && nBackStimulus && currentStimulus.position === nBackStimulus.position;
+      // Calculate position scores for all trials where matching is possible (only if position is enabled)
+      if (settings.enablePosition) {
+        console.log('Position responses:', userResponses);
+        for (let i = settings.currentLevel; i < gameHistory.length; i++) {
+          const currentStimulus = gameHistory[i];
+          const nBackStimulus = gameHistory[i - settings.currentLevel];
+          const isActuallyMatch = currentStimulus && nBackStimulus && currentStimulus.position === nBackStimulus.position;
 
-        const userResponded = userResponses.some(response => response.trialNumber === i + 1);
+          const userResponded = userResponses.some(response => response.trialNumber === i + 1);
 
-        if (isActuallyMatch && userResponded) {
-          tempPositionTP++;
-        } else if (isActuallyMatch && !userResponded) {
-          tempPositionFN++;
-        } else if (!isActuallyMatch && userResponded) {
-          tempPositionFP++;
-        } else if (!isActuallyMatch && !userResponded) {
-          tempPositionTN++;
+          if (isActuallyMatch && userResponded) {
+            tempPositionTP++;
+          } else if (isActuallyMatch && !userResponded) {
+            tempPositionFN++;
+          } else if (!isActuallyMatch && userResponded) {
+            tempPositionFP++;
+          } else if (!isActuallyMatch && !userResponded) {
+            tempPositionTN++;
+          }
         }
       }
 
-      // Calculate audio scores for all trials where matching is possible
-      console.log('Audio responses:', audioUserResponses);
-      for (let i = settings.currentLevel; i < gameHistory.length; i++) {
-        const currentStimulus = gameHistory[i];
-        const nBackStimulus = gameHistory[i - settings.currentLevel];
-        const isActuallyMatch = currentStimulus && nBackStimulus && currentStimulus.letter === nBackStimulus.letter;
+      // Calculate audio scores for all trials where matching is possible (only if audio is enabled)
+      if (settings.enableAudio) {
+        console.log('Audio responses:', audioUserResponses);
+        for (let i = settings.currentLevel; i < gameHistory.length; i++) {
+          const currentStimulus = gameHistory[i];
+          const nBackStimulus = gameHistory[i - settings.currentLevel];
+          const isActuallyMatch = currentStimulus && nBackStimulus && currentStimulus.letter === nBackStimulus.letter;
 
-        const userResponded = audioUserResponses.some(response => response.trialNumber === i + 1);
+          const userResponded = audioUserResponses.some(response => response.trialNumber === i + 1);
 
-        if (isActuallyMatch && userResponded) {
-          tempAudioTP++;
-        } else if (isActuallyMatch && !userResponded) {
-          tempAudioFN++;
-        } else if (!isActuallyMatch && userResponded) {
-          tempAudioFP++;
-        } else if (!isActuallyMatch && !userResponded) {
-          tempAudioTN++;
+          if (isActuallyMatch && userResponded) {
+            tempAudioTP++;
+          } else if (isActuallyMatch && !userResponded) {
+            tempAudioFN++;
+          } else if (!isActuallyMatch && userResponded) {
+            tempAudioFP++;
+          } else if (!isActuallyMatch && !userResponded) {
+            tempAudioTN++;
+          }
         }
       }
 
@@ -1200,11 +1323,13 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         trialDelay: settings.trialDelay,
         gameLength: settings.gameLength,
         matchProbability: settings.matchProbability,
+        enablePosition: settings.enablePosition,
+        enableAudio: settings.enableAudio,
       };
 
       saveGameStats(gameStats);
     }
-  }, [isGameActive, gameHistory, userResponses, audioUserResponses, settings.currentLevel, settings.winThreshold, settings.lossThreshold]);
+  }, [isGameActive, gameHistory, userResponses, audioUserResponses, settings.currentLevel, settings.winThreshold, settings.lossThreshold, settings.enablePosition, settings.enableAudio]);
 
   const totalTrialsWithMatching = Math.max(0, settings.gameLength - settings.currentLevel);
 
@@ -1335,88 +1460,104 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
             <View style={styles.resultsContainer}>
               <Text style={styles.resultsTitle}>Confusion Matrices</Text>
 
-              <View style={styles.confusionMatrixContainer}>
-                <Text style={styles.matrixTitle}>Position</Text>
-                <View style={styles.confusionMatrix}>
-                  <View style={styles.matrixHeaderRow}>
-                    <Text style={styles.matrixHeaderCell}></Text>
-                    <Text style={styles.matrixHeaderCell}>Actual: Match</Text>
-                    <Text style={styles.matrixHeaderCell}>Actual: No Match</Text>
-                  </View>
-                  <View style={styles.matrixRow}>
-                    <Text style={styles.matrixRowHeader}>You: Match</Text>
-                    <Text style={styles.matrixCell}>{positionTP}</Text>
-                    <Text style={styles.matrixCell}>{positionFP}</Text>
-                  </View>
-                  <View style={styles.matrixRow}>
-                    <Text style={styles.matrixRowHeader}>You: No Match</Text>
-                    <Text style={styles.matrixCell}>{positionFN}</Text>
-                    <Text style={styles.matrixCell}>{positionTN}</Text>
+              {settings.enablePosition && (
+                <View style={styles.confusionMatrixContainer}>
+                  <Text style={styles.matrixTitle}>Position</Text>
+                  <View style={styles.confusionMatrix}>
+                    <View style={styles.matrixHeaderRow}>
+                      <Text style={styles.matrixHeaderCell}></Text>
+                      <Text style={styles.matrixHeaderCell}>Actual: Match</Text>
+                      <Text style={styles.matrixHeaderCell}>Actual: No Match</Text>
+                    </View>
+                    <View style={styles.matrixRow}>
+                      <Text style={styles.matrixRowHeader}>You: Match</Text>
+                      <Text style={styles.matrixCell}>{positionTP}</Text>
+                      <Text style={styles.matrixCell}>{positionFP}</Text>
+                    </View>
+                    <View style={styles.matrixRow}>
+                      <Text style={styles.matrixRowHeader}>You: No Match</Text>
+                      <Text style={styles.matrixCell}>{positionFN}</Text>
+                      <Text style={styles.matrixCell}>{positionTN}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              )}
 
-              <View style={styles.confusionMatrixContainer}>
-                <Text style={styles.matrixTitle}>Audio</Text>
-                <View style={styles.confusionMatrix}>
-                  <View style={styles.matrixHeaderRow}>
-                    <Text style={styles.matrixHeaderCell}></Text>
-                    <Text style={styles.matrixHeaderCell}>Actual: Match</Text>
-                    <Text style={styles.matrixHeaderCell}>Actual: No Match</Text>
-                  </View>
-                  <View style={styles.matrixRow}>
-                    <Text style={styles.matrixRowHeader}>You: Match</Text>
-                    <Text style={styles.matrixCell}>{audioTP}</Text>
-                    <Text style={styles.matrixCell}>{audioFP}</Text>
-                  </View>
-                  <View style={styles.matrixRow}>
-                    <Text style={styles.matrixRowHeader}>You: No Match</Text>
-                    <Text style={styles.matrixCell}>{audioFN}</Text>
-                    <Text style={styles.matrixCell}>{audioTN}</Text>
+              {settings.enableAudio && (
+                <View style={styles.confusionMatrixContainer}>
+                  <Text style={styles.matrixTitle}>Audio</Text>
+                  <View style={styles.confusionMatrix}>
+                    <View style={styles.matrixHeaderRow}>
+                      <Text style={styles.matrixHeaderCell}></Text>
+                      <Text style={styles.matrixHeaderCell}>Actual: Match</Text>
+                      <Text style={styles.matrixHeaderCell}>Actual: No Match</Text>
+                    </View>
+                    <View style={styles.matrixRow}>
+                      <Text style={styles.matrixRowHeader}>You: Match</Text>
+                      <Text style={styles.matrixCell}>{audioTP}</Text>
+                      <Text style={styles.matrixCell}>{audioFP}</Text>
+                    </View>
+                    <View style={styles.matrixRow}>
+                      <Text style={styles.matrixRowHeader}>You: No Match</Text>
+                      <Text style={styles.matrixCell}>{audioFN}</Text>
+                      <Text style={styles.matrixCell}>{audioTN}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              )}
 
               <Text style={styles.resultsTitle}>Performance Statistics</Text>
               <View style={styles.statsTable}>
                 <View style={styles.statsHeaderRow}>
                   <Text style={styles.statsHeaderCell}>Metric</Text>
-                  <Text style={styles.statsHeaderCell}>Audio</Text>
-                  <Text style={styles.statsHeaderCell}>Visual</Text>
+                  {settings.enableAudio && <Text style={styles.statsHeaderCell}>Audio</Text>}
+                  {settings.enablePosition && <Text style={styles.statsHeaderCell}>Visual</Text>}
                   <Text style={styles.statsHeaderCell}>Combined</Text>
                 </View>
                 <View style={styles.statsRow}>
                   <Text style={styles.statsRowHeader}>Accuracy</Text>
-                  <Text style={styles.statsCell}>
-                    {audioTP + audioTN + audioFP + audioFN > 0 ? ((audioTP + audioTN) / (audioTP + audioTN + audioFP + audioFN) * 100).toFixed(0) : '0'}%
-                  </Text>
-                  <Text style={styles.statsCell}>
-                    {positionTP + positionTN + positionFP + positionFN > 0 ? ((positionTP + positionTN) / (positionTP + positionTN + positionFP + positionFN) * 100).toFixed(0) : '0'}%
-                  </Text>
+                  {settings.enableAudio && (
+                    <Text style={styles.statsCell}>
+                      {audioTP + audioTN + audioFP + audioFN > 0 ? ((audioTP + audioTN) / (audioTP + audioTN + audioFP + audioFN) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
+                  {settings.enablePosition && (
+                    <Text style={styles.statsCell}>
+                      {positionTP + positionTN + positionFP + positionFN > 0 ? ((positionTP + positionTN) / (positionTP + positionTN + positionFP + positionFN) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
                   <Text style={styles.statsCell}>
                     {positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN > 0 ? ((positionTP + positionTN + audioTP + audioTN) / (positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN) * 100).toFixed(0) : '0'}%
                   </Text>
                 </View>
                 <View style={styles.statsRow}>
                   <Text style={styles.statsRowHeader}>Sensitivity (TPR)</Text>
-                  <Text style={styles.statsCell}>
-                    {audioTP + audioFN > 0 ? (audioTP / (audioTP + audioFN) * 100).toFixed(0) : '0'}%
-                  </Text>
-                  <Text style={styles.statsCell}>
-                    {positionTP + positionFN > 0 ? (positionTP / (positionTP + positionFN) * 100).toFixed(0) : '0'}%
-                  </Text>
+                  {settings.enableAudio && (
+                    <Text style={styles.statsCell}>
+                      {audioTP + audioFN > 0 ? (audioTP / (audioTP + audioFN) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
+                  {settings.enablePosition && (
+                    <Text style={styles.statsCell}>
+                      {positionTP + positionFN > 0 ? (positionTP / (positionTP + positionFN) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
                   <Text style={styles.statsCell}>
                     {positionTP + audioTP + positionFN + audioFN > 0 ? ((positionTP + audioTP) / (positionTP + audioTP + positionFN + audioFN) * 100).toFixed(0) : '0'}%
                   </Text>
                 </View>
                 <View style={styles.statsRow}>
                   <Text style={styles.statsRowHeader}>Specificity (TNR)</Text>
-                  <Text style={styles.statsCell}>
-                    {audioTN + audioFP > 0 ? (audioTN / (audioTN + audioFP) * 100).toFixed(0) : '0'}%
-                  </Text>
-                  <Text style={styles.statsCell}>
-                    {positionTN + positionFP > 0 ? (positionTN / (positionTN + positionFP) * 100).toFixed(0) : '0'}%
-                  </Text>
+                  {settings.enableAudio && (
+                    <Text style={styles.statsCell}>
+                      {audioTN + audioFP > 0 ? (audioTN / (audioTN + audioFP) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
+                  {settings.enablePosition && (
+                    <Text style={styles.statsCell}>
+                      {positionTN + positionFP > 0 ? (positionTN / (positionTN + positionFP) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
                   <Text style={styles.statsCell}>
                     {positionTN + audioTN + positionFP + audioFP > 0 ? ((positionTN + audioTN) / (positionTN + audioTN + positionFP + audioFP) * 100).toFixed(0) : '0'}%
                   </Text>
@@ -1454,30 +1595,36 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         {currentLetter && (
           <Text style={styles.letterText}>Letter: {currentLetter}</Text>
         )}
-        <GameGrid gridSize={settings.gridSize} activeCell={activeCell} anyButtonPressed={anyButtonPressed} />
+        {settings.enablePosition && (
+          <GameGrid gridSize={settings.gridSize} activeCell={activeCell} anyButtonPressed={anyButtonPressed} />
+        )}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[
-              styles.colorButton,
-              trialCount <= settings.currentLevel && styles.disabledButton,
-              positionButtonPressed && styles.pressedButton
-            ]}
-            onPress={handlePositionMatch}
-            disabled={trialCount <= settings.currentLevel}
-          >
-            <Text style={styles.buttonText}>Position</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.colorButton,
-              trialCount <= settings.currentLevel && styles.disabledButton,
-              audioButtonPressed && styles.pressedButton
-            ]}
-            onPress={handleAudioMatch}
-            disabled={trialCount <= settings.currentLevel}
-          >
-            <Text style={styles.buttonText}>Audio</Text>
-          </TouchableOpacity>
+          {settings.enablePosition && (
+            <TouchableOpacity
+              style={[
+                styles.colorButton,
+                trialCount <= settings.currentLevel && styles.disabledButton,
+                positionButtonPressed && styles.pressedButton
+              ]}
+              onPress={handlePositionMatch}
+              disabled={trialCount <= settings.currentLevel}
+            >
+              <Text style={styles.buttonText}>Position</Text>
+            </TouchableOpacity>
+          )}
+          {settings.enableAudio && (
+            <TouchableOpacity
+              style={[
+                styles.colorButton,
+                trialCount <= settings.currentLevel && styles.disabledButton,
+                audioButtonPressed && styles.pressedButton
+              ]}
+              onPress={handleAudioMatch}
+              disabled={trialCount <= settings.currentLevel}
+            >
+              <Text style={styles.buttonText}>Audio</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
@@ -1567,7 +1714,7 @@ export default function App() {
               ),
             }}
           >
-            {() => <StatisticsScreen refreshTrigger={refreshTrigger} />}
+            {() => <StatisticsScreen refreshTrigger={refreshTrigger} currentSettings={gameSettings} />}
           </Tab.Screen>
           <Tab.Screen
             name="Settings"
@@ -2279,7 +2426,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  gameStatModality: {
+    fontSize: 14,
+    color: '#666',
+  },
   gameStatResult: {
+    marginTop: 5,
+  },
+  gameStatResultText: {
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -2351,5 +2505,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 5,
+  },
+  toggleButton: {
+    backgroundColor: '#3498db',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    marginTop: 10,
+    marginHorizontal: 5,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#2980b9',
+  },
+  toggleButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  toggleButtonTextActive: {
+    color: '#fff',
+  },
+  warningContainer: {
+    backgroundColor: '#f39c12',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    marginTop: 10,
+    marginHorizontal: 5,
+  },
+  warningText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalityInfo: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 5,
+    textAlign: 'center',
   },
 });
