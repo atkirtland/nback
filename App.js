@@ -1162,6 +1162,9 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
 
   // Track if level change has been processed
   const levelChangeProcessed = useRef(false);
+  
+  // Track the next level for display
+  const [nextLevel, setNextLevel] = useState(null);
 
   useEffect(() => {
     const loadAudioSounds = () => {
@@ -1547,6 +1550,9 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         newLevel = Math.max(1, settings.currentLevel - 1); // Level down, min 1
       }
 
+      // Store the next level for display
+      setNextLevel(newLevel);
+
       if (newLevel !== settings.currentLevel) {
         let updatedSettings = { ...settings, currentLevel: newLevel };
 
@@ -1691,6 +1697,11 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                     Level {levelChange === '+1' ? 'Up!' : 'Down!'}
                   </Text>
                 )}
+                {nextLevel && (
+                  <Text style={styles.nextLevelText}>
+                    Next Game: {nextLevel}-Back
+                  </Text>
+                )}
               </View>
             );
           })()}
@@ -1734,6 +1745,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                 setShapeButtonPressed(false);
                 setAnyButtonPressed(false);
                 levelChangeProcessed.current = false;
+                setNextLevel(null);
               }}
             >
               <Text style={styles.buttonText}>Play Again</Text>
@@ -2678,6 +2690,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginTop: 10,
+  },
+  nextLevelText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1e90ff',
+    marginTop: 15,
   },
   statsToggleButton: {
     flexDirection: 'row',
