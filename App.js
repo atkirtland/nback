@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS = {
   currentLevel: 2,
   gridSize: 3,
   trialDelay: 3, // seconds between trials
-  gameLength: 6, // number of trials per game
+  gameTrials: 20, // number of trials per game
   matchProbability: 0.3, // 30% probability of matches
   winThreshold: 90, // percentage threshold for winning (default 90%)
   lossThreshold: 70, // percentage threshold for losing (default 70%)
@@ -711,10 +711,10 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
   const updateSetting = async (key, value) => {
     let newSettings = { ...settings, [key]: value };
 
-    // If current level is being changed, ensure game length is at least equal to it
-    if (key === 'currentLevel' && newSettings.gameLength < value) {
-      newSettings = { ...newSettings, gameLength: value };
-    }
+    // // If current level is being changed, ensure game length is at least equal to it
+    // if (key === 'currentLevel' && newSettings.gameLength + newSettings.currentLevel < value) {
+    //   newSettings = { ...newSettings, gameLength: value };
+    // }
 
     // Prevent disabling both modalities
     if (key === 'enablePosition' && !value && !newSettings.enableAudio && !newSettings.enableColor && !newSettings.enableShape) {
@@ -801,17 +801,17 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
       </View>
 
       <View style={styles.settingItem}>
-        <Text style={styles.settingLabel}>Game Length: {settings.gameLength} trials</Text>
+        <Text style={styles.settingLabel}>Number of Trials: {settings.gameTrials} trials</Text>
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={styles.smallButton}
-            onPress={() => updateSetting('gameLength', Math.max(settings.currentLevel, settings.gameLength - 1))}
+            onPress={() => updateSetting('gameTrials', Math.max(0, settings.gameTrials - 1))}
           >
             <Text style={styles.buttonText}>-</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.smallButton}
-            onPress={() => updateSetting('gameLength', Math.min(20, settings.gameLength + 1))}
+            onPress={() => updateSetting('gameTrials', Math.min(999, settings.gameTrials + 1))}
           >
             <Text style={styles.buttonText}>+</Text>
           </TouchableOpacity>
@@ -1210,7 +1210,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
       setTrialCount(prev => {
         const newCount = prev + 1;
 
-        if (newCount > settings.gameLength) {
+        if (newCount > settings.gameTrials + settings.currentLevel) {
           setIsGameActive(false);
           return prev;
         }
@@ -1342,7 +1342,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
     }, settings.trialDelay * 1000);
 
     return () => clearInterval(interval);
-  }, [isGameActive, audioSoundsLoaded, settings.trialDelay, settings.gridSize, settings.gameLength, settings.currentLevel, settings.matchProbability]);
+  }, [isGameActive, audioSoundsLoaded, settings.trialDelay, settings.gridSize, settings.gameTrials, settings.currentLevel, settings.matchProbability]);
 
   // Reset button states when trial count changes
   useEffect(() => {
@@ -1550,10 +1550,10 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
       if (newLevel !== settings.currentLevel) {
         let updatedSettings = { ...settings, currentLevel: newLevel };
 
-        // Ensure game length is at least equal to the new level
-        if (updatedSettings.gameLength < newLevel) {
-          updatedSettings = { ...updatedSettings, gameLength: newLevel };
-        }
+        // // Ensure game length is at least equal to the new level
+        // if (updatedSettings.gameLength < newLevel) {
+        //   updatedSettings = { ...updatedSettings, gameLength: newLevel };
+        // }
 
         onSettingsChange(updatedSettings);
         saveSettings(updatedSettings);
@@ -1604,7 +1604,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         totalTrials: totalTrials,
         gridSize: settings.gridSize,
         trialDelay: settings.trialDelay,
-        gameLength: settings.gameLength,
+        gameTrials: settings.gameTrials,
         matchProbability: settings.matchProbability,
         enablePosition: settings.enablePosition,
         enableAudio: settings.enableAudio,
@@ -1616,7 +1616,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
     }
   }, [isGameActive, gameHistory, userResponses, audioUserResponses, colorUserResponses, shapeUserResponses, settings.currentLevel, settings.winThreshold, settings.lossThreshold, settings.enablePosition, settings.enableAudio, settings.enableColor, settings.enableShape]);
 
-  const totalTrialsWithMatching = Math.max(0, settings.gameLength - settings.currentLevel);
+  const totalTrialsWithMatching = Math.max(0, settings.gameTrials);
 
   // Function to play letter sound
   const playLetterSound = (letter) => {
@@ -1966,7 +1966,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         <Text style={styles.exitButtonText}>×</Text>
       </TouchableOpacity>
       <View style={styles.gameContent}>
-        <Text style={styles.trialText}>Trial {trialCount}/{settings.gameLength}</Text>
+        <Text style={styles.trialText}>Trial {trialCount}/{settings.gameTrials + settings.currentLevel}</Text>
         {settings.enablePosition && (
           <GameGrid gridSize={settings.gridSize} activeCell={activeCell} anyButtonPressed={anyButtonPressed} positionEnabled={true} />
         )}
@@ -2043,14 +2043,14 @@ export default function App() {
   // Load settings when app starts
   useEffect(() => {
     loadSettings().then(settings => {
-      // Ensure game length is at least equal to current level
-      if (settings.gameLength < settings.currentLevel) {
-        const correctedSettings = { ...settings, gameLength: settings.currentLevel };
-        setGameSettings(correctedSettings);
-        saveSettings(correctedSettings);
-      } else {
-        setGameSettings(settings);
-      }
+      // // Ensure game length is at least equal to current level
+      // if (settings.gameTrials < settings.currentLevel) {
+      //   const correctedSettings = { ...settings, gameLength: settings.currentLevel };
+      //   setGameSettings(correctedSettings);
+      //   saveSettings(correctedSettings);
+      // } else {
+      setGameSettings(settings);
+      // }
     });
   }, []);
 
