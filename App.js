@@ -31,6 +31,9 @@ const GAME_COLORS = ['#ff6347', '#4169e1', '#32cd32', '#ffd700', '#ff69b4', '#00
 // Game letters for audio stimuli
 const GAME_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
+// Game shapes for shape modality
+const GAME_SHAPES = ['square', 'circle', 'triangle', 'diamond'];
+
 const DEFAULT_SETTINGS = {
   currentLevel: 2,
   gridSize: 3,
@@ -42,6 +45,7 @@ const DEFAULT_SETTINGS = {
   enablePosition: true, // enable position modality
   enableAudio: true, // enable audio modality
   enableColor: false, // disable color modality
+  enableShape: false, // disable shape modality
 };
 
 const loadSettings = async () => {
@@ -291,6 +295,7 @@ const StartScreen = ({ settings, onStartGame }) => {
     if (settings.enablePosition) modalities.push('Position');
     if (settings.enableAudio) modalities.push('Audio');
     if (settings.enableColor) modalities.push('Color');
+    if (settings.enableShape) modalities.push('Shape');
     
     if (modalities.length === 0) {
       return 'No Modalities Enabled';
@@ -307,9 +312,9 @@ const StartScreen = ({ settings, onStartGame }) => {
       <Text style={styles.bodyText}>Grid Size: {settings.gridSize}x{settings.gridSize}</Text>
       <Text style={styles.bodyText}>Modalities: {getModalityText()}</Text>
       <TouchableOpacity 
-        style={[styles.startButton, (!settings.enablePosition && !settings.enableAudio && !settings.enableColor) && styles.disabledButton]} 
+        style={[styles.startButton, (!settings.enablePosition && !settings.enableAudio && !settings.enableColor && !settings.enableShape) && styles.disabledButton]} 
         onPress={handleStartGame}
-        disabled={!settings.enablePosition && !settings.enableAudio && !settings.enableColor}
+        disabled={!settings.enablePosition && !settings.enableAudio && !settings.enableColor && !settings.enableShape}
       >
         <Text style={styles.buttonText}>Start Game</Text>
       </TouchableOpacity>
@@ -338,8 +343,9 @@ const InstructionsScreen = () => (
         • A colored square appears in a grid position (if position modality is enabled){'\n'}
         • A letter is spoken aloud (if audio modality is enabled){'\n'}
         • The square changes color (if color modality is enabled){'\n'}
+        • The square changes shape (if shape modality is enabled){'\n'}
         • All happen simultaneously every few seconds{'\n'}
-        • You must remember the position, letter, and color
+        • You must remember the position, letter, color, and shape
       </Text>
 
       <Text style={styles.instructionsTitle}>Modalities</Text>
@@ -348,6 +354,7 @@ const InstructionsScreen = () => (
         • Position only: Remember and match grid positions{'\n'}
         • Audio only: Remember and match spoken letters{'\n'}
         • Color only: Remember and match square colors{'\n'}
+        • Shape only: Remember and match square shapes{'\n'}
         • Any combination: Remember and match multiple types{'\n'}
         • Change these in Settings
       </Text>
@@ -357,6 +364,7 @@ const InstructionsScreen = () => (
         • Press "Position" if the square appears in the SAME position as N trials ago{'\n'}
         • Press "Audio" if you hear the SAME letter as N trials ago{'\n'}
         • Press "Color" if the square is the SAME color as N trials ago{'\n'}
+        • Press "Shape" if the square is the SAME shape as N trials ago{'\n'}
         • You can press multiple buttons if multiple types match{'\n'}
         • Don't press anything if none match{'\n'}
         • Only enabled modality buttons will be shown
@@ -410,6 +418,7 @@ const StatisticsScreen = ({ refreshTrigger, currentSettings }) => {
     if (stat.enablePosition) modalities.push('Position');
     if (stat.enableAudio) modalities.push('Audio');
     if (stat.enableColor) modalities.push('Color');
+    if (stat.enableShape) modalities.push('Shape');
     
     if (modalities.length === 0) {
       return 'Unknown';
@@ -427,7 +436,8 @@ const StatisticsScreen = ({ refreshTrigger, currentSettings }) => {
     return gameStats.filter(stat => 
       stat.enablePosition === currentSettings.enablePosition && 
       stat.enableAudio === currentSettings.enableAudio &&
-      stat.enableColor === currentSettings.enableColor
+      stat.enableColor === currentSettings.enableColor &&
+      stat.enableShape === currentSettings.enableShape
     );
   };
 
@@ -707,15 +717,19 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
     }
 
     // Prevent disabling both modalities
-    if (key === 'enablePosition' && !value && !newSettings.enableAudio && !newSettings.enableColor) {
+    if (key === 'enablePosition' && !value && !newSettings.enableAudio && !newSettings.enableColor && !newSettings.enableShape) {
       Alert.alert('Invalid Setting', 'At least one modality must be enabled.');
       return;
     }
-    if (key === 'enableAudio' && !value && !newSettings.enablePosition && !newSettings.enableColor) {
+    if (key === 'enableAudio' && !value && !newSettings.enablePosition && !newSettings.enableColor && !newSettings.enableShape) {
       Alert.alert('Invalid Setting', 'At least one modality must be enabled.');
       return;
     }
-    if (key === 'enableColor' && !value && !newSettings.enablePosition && !newSettings.enableAudio) {
+    if (key === 'enableColor' && !value && !newSettings.enablePosition && !newSettings.enableAudio && !newSettings.enableShape) {
+      Alert.alert('Invalid Setting', 'At least one modality must be enabled.');
+      return;
+    }
+    if (key === 'enableShape' && !value && !newSettings.enablePosition && !newSettings.enableAudio && !newSettings.enableColor) {
       Alert.alert('Invalid Setting', 'At least one modality must be enabled.');
       return;
     }
@@ -895,8 +909,20 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.settingItem}>
+        <Text style={styles.settingLabel}>Shape Modality: {settings.enableShape ? 'ON' : 'OFF'}</Text>
+        <TouchableOpacity
+          style={[styles.toggleButton, settings.enableShape && styles.toggleButtonActive]}
+          onPress={() => updateSetting('enableShape', !settings.enableShape)}
+        >
+          <Text style={[styles.toggleButtonText, settings.enableShape && styles.toggleButtonTextActive]}>
+            {settings.enableShape ? 'ON' : 'OFF'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Warning if both modalities are disabled */}
-      {!settings.enablePosition && !settings.enableAudio && !settings.enableColor && (
+      {!settings.enablePosition && !settings.enableAudio && !settings.enableColor && !settings.enableShape && (
         <View style={styles.warningContainer}>
           <Text style={styles.warningText}>⚠️ At least one modality must be enabled!</Text>
         </View>
@@ -943,6 +969,43 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
       />
     </ScrollView>
   );
+};
+
+// Shape View Component
+const ShapeView = ({ shape, color, size }) => {
+  const shapeStyle = {
+    width: size,
+    height: size,
+    backgroundColor: color || GAME_COLOR,
+  };
+
+  switch (shape) {
+    case 'circle':
+      return (
+        <View style={[shapeStyle, { borderRadius: size / 2 }]} />
+      );
+    case 'triangle':
+      return (
+        <View style={[shapeStyle, { 
+          backgroundColor: 'transparent',
+          borderLeftWidth: size / 2,
+          borderRightWidth: size / 2,
+          borderBottomWidth: size,
+          borderLeftColor: 'transparent',
+          borderRightColor: 'transparent',
+          borderBottomColor: color || GAME_COLOR,
+        }]} />
+      );
+    case 'diamond':
+      return (
+        <View style={[shapeStyle, { 
+          transform: [{ rotate: '45deg' }],
+        }]} />
+      );
+    case 'square':
+    default:
+      return <View style={shapeStyle} />;
+  }
 };
 
 // Game Grid Component
@@ -1001,7 +1064,8 @@ const GameGrid = ({ gridSize, activeCell, anyButtonPressed }) => {
               top: Math.floor(activeCell.position / gridSize) * cellSize,
               width: cellSize,
               height: cellSize,
-              backgroundColor: activeCell.color || GAME_COLOR,
+              justifyContent: 'center',
+              alignItems: 'center',
               opacity: anyButtonPressed ? 1 : activeCellAnimation.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0.3, 1],
@@ -1014,7 +1078,13 @@ const GameGrid = ({ gridSize, activeCell, anyButtonPressed }) => {
               }]
             }
           ]}
-        />
+        >
+          <ShapeView 
+            shape={activeCell.shape || 'square'} 
+            color={activeCell.color || GAME_COLOR} 
+            size={cellSize * 0.8} 
+          />
+        </Animated.View>
       )}
     </View>
   );
@@ -1050,10 +1120,18 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
   const [colorFN, setColorFalseNegatives] = useState(0);
   const [colorUserResponses, setColorUserResponses] = useState([]);
 
+  // Shape scoring variables
+  const [shapeTP, setShapeTruePositives] = useState(0);
+  const [shapeFP, setShapeFalsePositives] = useState(0);
+  const [shapeTN, setShapeTrueNegatives] = useState(0);
+  const [shapeFN, setShapeFalseNegatives] = useState(0);
+  const [shapeUserResponses, setShapeUserResponses] = useState([]);
+
   // Button press states
   const [positionButtonPressed, setPositionButtonPressed] = useState(false);
   const [audioButtonPressed, setAudioButtonPressed] = useState(false);
   const [colorButtonPressed, setColorButtonPressed] = useState(false);
+  const [shapeButtonPressed, setShapeButtonPressed] = useState(false);
   const [anyButtonPressed, setAnyButtonPressed] = useState(false);
 
   // Audio state
@@ -1124,22 +1202,26 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         let newPosition;
         let newLetter;
         let newColor;
+        let newShape;
 
         setGameHistory(prev => {
           let newPosition;
           let newLetter;
           let newColor;
+          let newShape;
 
           if (newCount <= settings.currentLevel) {
             // First n trials: uniform random
             newPosition = settings.enablePosition ? Math.floor(Math.random() * (settings.gridSize * settings.gridSize)) : null;
             newLetter = settings.enableAudio ? GAME_LETTERS[Math.floor(Math.random() * GAME_LETTERS.length)] : null;
             newColor = settings.enableColor ? GAME_COLORS[Math.floor(Math.random() * GAME_COLORS.length)] : null;
+            newShape = settings.enableShape ? GAME_SHAPES[Math.floor(Math.random() * GAME_SHAPES.length)] : null;
           } else {
             // Subsequent trials: controlled probability
             const random = Math.random();
             const letterRandom = Math.random();
             const colorRandom = Math.random();
+            const shapeRandom = Math.random();
 
             // Position generation with controlled probability
             if (settings.enablePosition) {
@@ -1195,12 +1277,31 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
             } else {
               newColor = null;
             }
+
+            // Shape generation with controlled probability
+            if (settings.enableShape) {
+              const nBackStimulus = prev[newCount - settings.currentLevel - 1];
+              if (shapeRandom < settings.matchProbability) {
+                // With probability p, select the same shape as n trials ago
+                newShape = nBackStimulus.shape;
+              } else {
+                // With probability 1-p, select uniform random shape that is NOT the n-back shape
+                let randomShape;
+                do {
+                  randomShape = GAME_SHAPES[Math.floor(Math.random() * GAME_SHAPES.length)];
+                } while (randomShape === nBackStimulus.shape);
+                newShape = randomShape;
+              }
+            } else {
+              newShape = null;
+            }
           }
 
           const newStimulus = {
             position: newPosition,
             color: newColor,
             letter: newLetter,
+            shape: newShape,
             trialNumber: newCount
           };
 
@@ -1233,6 +1334,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
       setPositionButtonPressed(false);
       setAudioButtonPressed(false);
       setColorButtonPressed(false);
+      setShapeButtonPressed(false);
       setAnyButtonPressed(false);
     }
   }, [trialCount]);
@@ -1294,6 +1396,25 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
     setAnyButtonPressed(true);
   };
 
+  const handleShapeMatch = () => {
+    if (trialCount <= settings.currentLevel) return; // Can't match until we have enough trials
+
+    const currentStimulus = gameHistory[trialCount - 1];
+    const nBackStimulus = gameHistory[trialCount - 1 - settings.currentLevel];
+    const isActuallyMatch = currentStimulus && nBackStimulus && currentStimulus.shape === nBackStimulus.shape;
+
+    // Record user response (they pressed the button)
+    const response = {
+      trialNumber: trialCount,
+      userPressed: true,
+      wasActuallyMatch: isActuallyMatch
+    };
+    console.log('Shape match pressed - Trial:', trialCount, 'Actually match:', isActuallyMatch);
+    setShapeUserResponses(prev => [...prev, response]);
+    setShapeButtonPressed(true);
+    setAnyButtonPressed(true);
+  };
+
   // Calculate final scores when game ends
   useEffect(() => {
     if (!isGameActive && gameHistory.length > 0 && !levelChangeProcessed.current) {
@@ -1301,6 +1422,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
       let tempPositionTP = 0, tempPositionFP = 0, tempPositionTN = 0, tempPositionFN = 0;
       let tempAudioTP = 0, tempAudioFP = 0, tempAudioTN = 0, tempAudioFN = 0;
       let tempColorTP = 0, tempColorFP = 0, tempColorTN = 0, tempColorFN = 0;
+      let tempShapeTP = 0, tempShapeFP = 0, tempShapeTN = 0, tempShapeFN = 0;
 
       // Calculate position scores for all trials where matching is possible (only if position is enabled)
       if (settings.enablePosition) {
@@ -1368,12 +1490,34 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         }
       }
 
+      // Calculate shape scores for all trials where matching is possible (only if shape is enabled)
+      if (settings.enableShape) {
+        console.log('Shape responses:', shapeUserResponses);
+        for (let i = settings.currentLevel; i < gameHistory.length; i++) {
+          const currentStimulus = gameHistory[i];
+          const nBackStimulus = gameHistory[i - settings.currentLevel];
+          const isActuallyMatch = currentStimulus && nBackStimulus && currentStimulus.shape === nBackStimulus.shape;
+
+          const userResponded = shapeUserResponses.some(response => response.trialNumber === i + 1);
+
+          if (isActuallyMatch && userResponded) {
+            tempShapeTP++;
+          } else if (isActuallyMatch && !userResponded) {
+            tempShapeFN++;
+          } else if (!isActuallyMatch && userResponded) {
+            tempShapeFP++;
+          } else if (!isActuallyMatch && !userResponded) {
+            tempShapeTN++;
+          }
+        }
+      }
+
       // Update level based on performance (using temporary scores)
-      const totalTrials = tempPositionTP + tempPositionTN + tempPositionFP + tempPositionFN + tempAudioTP + tempAudioTN + tempAudioFP + tempAudioFN + tempColorTP + tempColorTN + tempColorFP + tempColorFN;
+      const totalTrials = tempPositionTP + tempPositionTN + tempPositionFP + tempPositionFN + tempAudioTP + tempAudioTN + tempAudioFP + tempAudioFN + tempColorTP + tempColorTN + tempColorFP + tempColorFN + tempShapeTP + tempShapeTN + tempShapeFP + tempShapeFN;
 
       let combinedAccuracy;
       if (totalTrials > 0) {
-        combinedAccuracy = ((tempPositionTP + tempPositionTN + tempAudioTP + tempAudioTN + tempColorTP + tempColorTN) / totalTrials) * 100;
+        combinedAccuracy = ((tempPositionTP + tempPositionTN + tempAudioTP + tempAudioTN + tempColorTP + tempColorTN + tempShapeTP + tempShapeTN) / totalTrials) * 100;
       } else {
         // No trials where matching was possible (N=L case)
         // Treat as perfect accuracy since player couldn't make mistakes
@@ -1415,6 +1559,10 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
       setColorFalsePositives(tempColorFP);
       setColorTrueNegatives(tempColorTN);
       setColorFalseNegatives(tempColorFN);
+      setShapeTruePositives(tempShapeTP);
+      setShapeFalsePositives(tempShapeFP);
+      setShapeTrueNegatives(tempShapeTN);
+      setShapeFalseNegatives(tempShapeFN);
 
       // Save game statistics
       const gameStats = {
@@ -1433,6 +1581,10 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         colorFP: tempColorFP,
         colorTN: tempColorTN,
         colorFN: tempColorFN,
+        shapeTP: tempShapeTP,
+        shapeFP: tempShapeFP,
+        shapeTN: tempShapeTN,
+        shapeFN: tempShapeFN,
         totalTrials: totalTrials,
         gridSize: settings.gridSize,
         trialDelay: settings.trialDelay,
@@ -1441,11 +1593,12 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         enablePosition: settings.enablePosition,
         enableAudio: settings.enableAudio,
         enableColor: settings.enableColor,
+        enableShape: settings.enableShape,
       };
 
       saveGameStats(gameStats);
     }
-  }, [isGameActive, gameHistory, userResponses, audioUserResponses, colorUserResponses, settings.currentLevel, settings.winThreshold, settings.lossThreshold, settings.enablePosition, settings.enableAudio, settings.enableColor]);
+  }, [isGameActive, gameHistory, userResponses, audioUserResponses, colorUserResponses, shapeUserResponses, settings.currentLevel, settings.winThreshold, settings.lossThreshold, settings.enablePosition, settings.enableAudio, settings.enableColor, settings.enableShape]);
 
   const totalTrialsWithMatching = Math.max(0, settings.gameLength - settings.currentLevel);
 
@@ -1478,10 +1631,10 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
 
           {/* Win/Loss Result */}
           {(() => {
-            const totalTrials = positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN + colorTP + colorTN + colorFP + colorFN;
+            const totalTrials = positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN + colorTP + colorTN + colorFP + colorFN + shapeTP + shapeTN + shapeFP + shapeFN;
             let combinedAccuracy;
             if (totalTrials > 0) {
-              combinedAccuracy = ((positionTP + positionTN + audioTP + audioTN + colorTP + colorTN) / totalTrials) * 100;
+              combinedAccuracy = ((positionTP + positionTN + audioTP + audioTN + colorTP + colorTN + shapeTP + shapeTN) / totalTrials) * 100;
             } else {
               // No trials where matching was possible (N=L case)
               // Treat as perfect accuracy since player couldn't make mistakes
@@ -1542,6 +1695,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                 setUserResponses([]);
                 setAudioUserResponses([]);
                 setColorUserResponses([]);
+                setShapeUserResponses([]);
                 setTruePositives(0);
                 setFalsePositives(0);
                 setTrueNegatives(0);
@@ -1554,9 +1708,14 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                 setColorFalsePositives(0);
                 setColorTrueNegatives(0);
                 setColorFalseNegatives(0);
+                setShapeTruePositives(0);
+                setShapeFalsePositives(0);
+                setShapeTrueNegatives(0);
+                setShapeFalseNegatives(0);
                 setPositionButtonPressed(false);
                 setAudioButtonPressed(false);
                 setColorButtonPressed(false);
+                setShapeButtonPressed(false);
                 setAnyButtonPressed(false);
                 levelChangeProcessed.current = false;
               }}
@@ -1651,6 +1810,29 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                 </View>
               )}
 
+              {settings.enableShape && (
+                <View style={styles.confusionMatrixContainer}>
+                  <Text style={styles.matrixTitle}>Shape</Text>
+                  <View style={styles.confusionMatrix}>
+                    <View style={styles.matrixHeaderRow}>
+                      <Text style={styles.matrixHeaderCell}></Text>
+                      <Text style={styles.matrixHeaderCell}>Actual: Match</Text>
+                      <Text style={styles.matrixHeaderCell}>Actual: No Match</Text>
+                    </View>
+                    <View style={styles.matrixRow}>
+                      <Text style={styles.matrixRowHeader}>You: Match</Text>
+                      <Text style={styles.matrixCell}>{shapeTP}</Text>
+                      <Text style={styles.matrixCell}>{shapeFP}</Text>
+                    </View>
+                    <View style={styles.matrixRow}>
+                      <Text style={styles.matrixRowHeader}>You: No Match</Text>
+                      <Text style={styles.matrixCell}>{shapeFN}</Text>
+                      <Text style={styles.matrixCell}>{shapeTN}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
               <Text style={styles.resultsTitle}>Performance Statistics</Text>
               <View style={styles.statsTable}>
                 <View style={styles.statsHeaderRow}>
@@ -1658,6 +1840,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                   {settings.enableAudio && <Text style={styles.statsHeaderCell}>Audio</Text>}
                   {settings.enablePosition && <Text style={styles.statsHeaderCell}>Visual</Text>}
                   {settings.enableColor && <Text style={styles.statsHeaderCell}>Color</Text>}
+                  {settings.enableShape && <Text style={styles.statsHeaderCell}>Shape</Text>}
                   <Text style={styles.statsHeaderCell}>Combined</Text>
                 </View>
                 <View style={styles.statsRow}>
@@ -1677,8 +1860,13 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                       {colorTP + colorTN + colorFP + colorFN > 0 ? ((colorTP + colorTN) / (colorTP + colorTN + colorFP + colorFN) * 100).toFixed(0) : '0'}%
                     </Text>
                   )}
+                  {settings.enableShape && (
+                    <Text style={styles.statsCell}>
+                      {shapeTP + shapeTN + shapeFP + shapeFN > 0 ? ((shapeTP + shapeTN) / (shapeTP + shapeTN + shapeFP + shapeFN) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
                   <Text style={styles.statsCell}>
-                    {positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN + colorTP + colorTN + colorFP + colorFN > 0 ? ((positionTP + positionTN + audioTP + audioTN + colorTP + colorTN) / (positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN + colorTP + colorTN + colorFP + colorFN) * 100).toFixed(0) : '0'}%
+                    {positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN + colorTP + colorTN + colorFP + colorFN + shapeTP + shapeTN + shapeFP + shapeFN > 0 ? ((positionTP + positionTN + audioTP + audioTN + colorTP + colorTN + shapeTP + shapeTN) / (positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN + colorTP + colorTN + colorFP + colorFN + shapeTP + shapeTN + shapeFP + shapeFN) * 100).toFixed(0) : '0'}%
                   </Text>
                 </View>
                 <View style={styles.statsRow}>
@@ -1698,8 +1886,13 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                       {colorTP + colorFN > 0 ? (colorTP / (colorTP + colorFN) * 100).toFixed(0) : '0'}%
                     </Text>
                   )}
+                  {settings.enableShape && (
+                    <Text style={styles.statsCell}>
+                      {shapeTP + shapeFN > 0 ? (shapeTP / (shapeTP + shapeFN) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
                   <Text style={styles.statsCell}>
-                    {positionTP + audioTP + colorTP + positionFN + audioFN + colorFN > 0 ? ((positionTP + audioTP + colorTP) / (positionTP + audioTP + colorTP + positionFN + audioFN + colorFN) * 100).toFixed(0) : '0'}%
+                    {positionTP + audioTP + colorTP + shapeTP + positionFN + audioFN + colorFN + shapeFN > 0 ? ((positionTP + audioTP + colorTP + shapeTP) / (positionTP + audioTP + colorTP + shapeTP + positionFN + audioFN + colorFN + shapeFN) * 100).toFixed(0) : '0'}%
                   </Text>
                 </View>
                 <View style={styles.statsRow}>
@@ -1719,8 +1912,13 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                       {colorTN + colorFP > 0 ? (colorTN / (colorTN + colorFP) * 100).toFixed(0) : '0'}%
                     </Text>
                   )}
+                  {settings.enableShape && (
+                    <Text style={styles.statsCell}>
+                      {shapeTN + shapeFP > 0 ? (shapeTN / (shapeTN + shapeFP) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
                   <Text style={styles.statsCell}>
-                    {positionTN + audioTN + colorTN + positionFP + audioFP + colorFP > 0 ? ((positionTN + audioTN + colorTN) / (positionTN + audioTN + colorTN + positionFP + audioFP + colorFP) * 100).toFixed(0) : '0'}%
+                    {positionTN + audioTN + colorTN + shapeTN + positionFP + audioFP + colorFP + shapeFP > 0 ? ((positionTN + audioTN + colorTN + shapeTN) / (positionTN + audioTN + colorTN + shapeTN + positionFP + audioFP + colorFP + shapeFP) * 100).toFixed(0) : '0'}%
                   </Text>
                 </View>
               </View>
@@ -1756,7 +1954,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         {settings.enablePosition && (
           <GameGrid gridSize={settings.gridSize} activeCell={activeCell} anyButtonPressed={anyButtonPressed} />
         )}
-        {settings.enableColor && !settings.enablePosition && (
+        {!settings.enablePosition && (settings.enableColor || settings.enableShape) && (
           <GameGrid gridSize={1} activeCell={activeCell ? {...activeCell, position: 0} : null} anyButtonPressed={anyButtonPressed} />
         )}
         <View style={styles.buttonContainer}>
@@ -1797,6 +1995,19 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
               disabled={trialCount <= settings.currentLevel}
             >
               <Text style={styles.buttonText}>Color</Text>
+            </TouchableOpacity>
+          )}
+          {settings.enableShape && (
+            <TouchableOpacity
+              style={[
+                styles.colorButton,
+                trialCount <= settings.currentLevel && styles.disabledButton,
+                shapeButtonPressed && styles.pressedButton
+              ]}
+              onPress={handleShapeMatch}
+              disabled={trialCount <= settings.currentLevel}
+            >
+              <Text style={styles.buttonText}>Shape</Text>
             </TouchableOpacity>
           )}
         </View>
