@@ -1756,10 +1756,8 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         {settings.enablePosition && (
           <GameGrid gridSize={settings.gridSize} activeCell={activeCell} anyButtonPressed={anyButtonPressed} />
         )}
-        {settings.enableColor && !settings.enablePosition && activeCell && (
-          <View style={styles.colorSquareContainer}>
-            <View style={[styles.colorSquare, { backgroundColor: activeCell.color }]} />
-          </View>
+        {settings.enableColor && !settings.enablePosition && (
+          <GameGrid gridSize={1} activeCell={activeCell ? {...activeCell, position: 0} : null} anyButtonPressed={anyButtonPressed} />
         )}
         <View style={styles.buttonContainer}>
           {settings.enablePosition && (
@@ -2739,20 +2737,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 5,
   },
-  colorSquareContainer: {
-    width: 100,
-    height: 100,
-    borderWidth: 2,
-    borderColor: '#333',
-    borderRadius: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  colorSquare: {
-    width: 80,
-    height: 80,
-    borderRadius: 5,
-  },
+
   startScreenContainer: {
     flex: 1,
     backgroundColor: '#f0f0f0',
