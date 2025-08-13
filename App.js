@@ -1000,6 +1000,8 @@ const ShapeView = ({ shape, color, size }) => {
       return (
         <View style={[shapeStyle, { 
           transform: [{ rotate: '45deg' }],
+          width: size * 0.7, // Make diamond smaller to fit within grid
+          height: size * 0.7,
         }]} />
       );
     case 'square':
@@ -1009,28 +1011,39 @@ const ShapeView = ({ shape, color, size }) => {
 };
 
 // Game Grid Component
-const GameGrid = ({ gridSize, activeCell, anyButtonPressed }) => {
+const GameGrid = ({ gridSize, activeCell, anyButtonPressed, positionEnabled = true }) => {
   const totalCells = gridSize * gridSize;
   const gridSize_px = 300;
   const cellSize = gridSize_px / gridSize;
 
   // Create animated value for the active cell
-  const activeCellAnimation = new Animated.Value(0);
+  const activeCellAnimation = useRef(new Animated.Value(0)).current;
+  const lastPosition = useRef(null);
 
   // Animate the active cell when it changes
   useEffect(() => {
     if (activeCell && !anyButtonPressed) {
-      // Reset animation
-      activeCellAnimation.setValue(0);
+      const currentPosition = positionEnabled ? activeCell.position : 0;
+      
+      // Only animate if position is enabled AND position actually changed
+      if (positionEnabled && (lastPosition.current === null || lastPosition.current !== currentPosition)) {
+        // Reset animation
+        activeCellAnimation.setValue(0);
 
-      // Animate the active cell
-      Animated.timing(activeCellAnimation, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: false,
-      }).start();
+        // Animate the active cell
+        Animated.timing(activeCellAnimation, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: false,
+        }).start();
+      } else if (!positionEnabled) {
+        // When position is disabled, just set to final state without animation
+        activeCellAnimation.setValue(1);
+      }
+      
+      lastPosition.current = currentPosition;
     }
-  }, [activeCell, anyButtonPressed]);
+  }, [activeCell, anyButtonPressed, positionEnabled]);
 
   return (
     <View style={[styles.gameGrid, { width: gridSize_px, height: gridSize_px }]}>
@@ -1060,10 +1073,11 @@ const GameGrid = ({ gridSize, activeCell, anyButtonPressed }) => {
             styles.activeCellOverlay,
             {
               position: 'absolute',
-              left: (activeCell.position % gridSize) * cellSize,
-              top: Math.floor(activeCell.position / gridSize) * cellSize,
+              left: positionEnabled ? (activeCell.position % gridSize) * cellSize : 0,
+              top: positionEnabled ? Math.floor(activeCell.position / gridSize) * cellSize : 0,
               width: cellSize,
               height: cellSize,
+              backgroundColor: activeCell.shape ? 'transparent' : (activeCell.color || GAME_COLOR),
               justifyContent: 'center',
               alignItems: 'center',
               opacity: anyButtonPressed ? 1 : activeCellAnimation.interpolate({
@@ -1079,11 +1093,13 @@ const GameGrid = ({ gridSize, activeCell, anyButtonPressed }) => {
             }
           ]}
         >
-          <ShapeView 
-            shape={activeCell.shape || 'square'} 
-            color={activeCell.color || GAME_COLOR} 
-            size={cellSize * 0.8} 
-          />
+          {activeCell.shape && (
+            <ShapeView 
+              shape={activeCell.shape} 
+              color={activeCell.color || GAME_COLOR} 
+              size={cellSize * 0.8} 
+            />
+          )}
         </Animated.View>
       )}
     </View>
@@ -1952,10 +1968,10 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
       <View style={styles.gameContent}>
         <Text style={styles.trialText}>Trial {trialCount}/{settings.gameLength}</Text>
         {settings.enablePosition && (
-          <GameGrid gridSize={settings.gridSize} activeCell={activeCell} anyButtonPressed={anyButtonPressed} />
+          <GameGrid gridSize={settings.gridSize} activeCell={activeCell} anyButtonPressed={anyButtonPressed} positionEnabled={true} />
         )}
         {!settings.enablePosition && (settings.enableColor || settings.enableShape) && (
-          <GameGrid gridSize={1} activeCell={activeCell ? {...activeCell, position: 0} : null} anyButtonPressed={anyButtonPressed} />
+          <GameGrid gridSize={1} activeCell={activeCell} anyButtonPressed={anyButtonPressed} positionEnabled={false} />
         )}
         <View style={styles.buttonContainer}>
           {settings.enablePosition && (
