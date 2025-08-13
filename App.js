@@ -23,7 +23,10 @@ import { LineChart } from 'react-native-chart-kit';
 
 // --- Game Settings Management ---
 // Game color for the stimuli
-const GAME_COLOR = '#ff6347'; // red
+const GAME_COLOR = '#4169e1'; // blue
+
+// Game colors for color modality
+const GAME_COLORS = ['#ff6347', '#4169e1', '#32cd32', '#ffd700', '#ff69b4', '#00ced1', '#ff8c00', '#9370db'];
 
 // Game letters for audio stimuli
 const GAME_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
@@ -38,6 +41,7 @@ const DEFAULT_SETTINGS = {
   lossThreshold: 70, // percentage threshold for losing (default 70%)
   enablePosition: true, // enable position modality
   enableAudio: true, // enable audio modality
+  enableColor: false, // disable color modality
 };
 
 const loadSettings = async () => {
@@ -283,26 +287,29 @@ const StartScreen = ({ settings, onStartGame }) => {
   };
 
   const getModalityText = () => {
-    if (settings.enablePosition && settings.enableAudio) {
-      return 'Position + Audio';
-    } else if (settings.enablePosition) {
-      return 'Position Only';
-    } else if (settings.enableAudio) {
-      return 'Audio Only';
-    } else {
+    const modalities = [];
+    if (settings.enablePosition) modalities.push('Position');
+    if (settings.enableAudio) modalities.push('Audio');
+    if (settings.enableColor) modalities.push('Color');
+    
+    if (modalities.length === 0) {
       return 'No Modalities Enabled';
+    } else if (modalities.length === 1) {
+      return `${modalities[0]} Only`;
+    } else {
+      return modalities.join(' + ');
     }
   };
 
   return (
-    <View style={styles.screenContainer}>
+    <View style={styles.startScreenContainer}>
       <Text style={styles.headerText}>Current Level: {settings.currentLevel}-Back</Text>
       <Text style={styles.bodyText}>Grid Size: {settings.gridSize}x{settings.gridSize}</Text>
       <Text style={styles.bodyText}>Modalities: {getModalityText()}</Text>
       <TouchableOpacity 
-        style={[styles.startButton, (!settings.enablePosition && !settings.enableAudio) && styles.disabledButton]} 
+        style={[styles.startButton, (!settings.enablePosition && !settings.enableAudio && !settings.enableColor) && styles.disabledButton]} 
         onPress={handleStartGame}
-        disabled={!settings.enablePosition && !settings.enableAudio}
+        disabled={!settings.enablePosition && !settings.enableAudio && !settings.enableColor}
       >
         <Text style={styles.buttonText}>Start Game</Text>
       </TouchableOpacity>
@@ -312,7 +319,11 @@ const StartScreen = ({ settings, onStartGame }) => {
 
 // Instructions Screen
 const InstructionsScreen = () => (
-  <View style={styles.screenContainer}>
+  <ScrollView
+    style={styles.screenContainer}
+    contentContainerStyle={styles.instructionsContentContainer}
+    showsVerticalScrollIndicator={false}
+  >
     <Text style={styles.headerText}>How to Play</Text>
 
     <View style={styles.instructionsContainer}>
@@ -326,8 +337,9 @@ const InstructionsScreen = () => (
       <Text style={styles.instructionsText}>
         • A colored square appears in a grid position (if position modality is enabled){'\n'}
         • A letter is spoken aloud (if audio modality is enabled){'\n'}
-        • Both happen simultaneously every few seconds{'\n'}
-        • You must remember both the position and the letter
+        • The square changes color (if color modality is enabled){'\n'}
+        • All happen simultaneously every few seconds{'\n'}
+        • You must remember the position, letter, and color
       </Text>
 
       <Text style={styles.instructionsTitle}>Modalities</Text>
@@ -335,7 +347,8 @@ const InstructionsScreen = () => (
         You can play with different combinations of modalities:{'\n'}
         • Position only: Remember and match grid positions{'\n'}
         • Audio only: Remember and match spoken letters{'\n'}
-        • Both: Remember and match both position and audio{'\n'}
+        • Color only: Remember and match square colors{'\n'}
+        • Any combination: Remember and match multiple types{'\n'}
         • Change these in Settings
       </Text>
 
@@ -343,8 +356,9 @@ const InstructionsScreen = () => (
       <Text style={styles.instructionsText}>
         • Press "Position" if the square appears in the SAME position as N trials ago{'\n'}
         • Press "Audio" if you hear the SAME letter as N trials ago{'\n'}
-        • You can press both buttons if both position AND letter match{'\n'}
-        • Don't press anything if neither matches{'\n'}
+        • Press "Color" if the square is the SAME color as N trials ago{'\n'}
+        • You can press multiple buttons if multiple types match{'\n'}
+        • Don't press anything if none match{'\n'}
         • Only enabled modality buttons will be shown
       </Text>
 
@@ -356,7 +370,7 @@ const InstructionsScreen = () => (
         • Regular practice can improve your working memory
       </Text>
     </View>
-  </View>
+  </ScrollView>
 );
 
 // Statistics Screen
@@ -392,14 +406,17 @@ const StatisticsScreen = ({ refreshTrigger, currentSettings }) => {
   };
 
   const getModalityText = (stat) => {
-    if (stat.enablePosition && stat.enableAudio) {
-      return 'Position + Audio';
-    } else if (stat.enablePosition) {
-      return 'Position Only';
-    } else if (stat.enableAudio) {
-      return 'Audio Only';
-    } else {
+    const modalities = [];
+    if (stat.enablePosition) modalities.push('Position');
+    if (stat.enableAudio) modalities.push('Audio');
+    if (stat.enableColor) modalities.push('Color');
+    
+    if (modalities.length === 0) {
       return 'Unknown';
+    } else if (modalities.length === 1) {
+      return `${modalities[0]} Only`;
+    } else {
+      return modalities.join(' + ');
     }
   };
 
@@ -409,7 +426,8 @@ const StatisticsScreen = ({ refreshTrigger, currentSettings }) => {
     
     return gameStats.filter(stat => 
       stat.enablePosition === currentSettings.enablePosition && 
-      stat.enableAudio === currentSettings.enableAudio
+      stat.enableAudio === currentSettings.enableAudio &&
+      stat.enableColor === currentSettings.enableColor
     );
   };
 
@@ -689,11 +707,15 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
     }
 
     // Prevent disabling both modalities
-    if (key === 'enablePosition' && !value && !newSettings.enableAudio) {
+    if (key === 'enablePosition' && !value && !newSettings.enableAudio && !newSettings.enableColor) {
       Alert.alert('Invalid Setting', 'At least one modality must be enabled.');
       return;
     }
-    if (key === 'enableAudio' && !value && !newSettings.enablePosition) {
+    if (key === 'enableAudio' && !value && !newSettings.enablePosition && !newSettings.enableColor) {
+      Alert.alert('Invalid Setting', 'At least one modality must be enabled.');
+      return;
+    }
+    if (key === 'enableColor' && !value && !newSettings.enablePosition && !newSettings.enableAudio) {
       Alert.alert('Invalid Setting', 'At least one modality must be enabled.');
       return;
     }
@@ -861,8 +883,20 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.settingItem}>
+        <Text style={styles.settingLabel}>Color Modality: {settings.enableColor ? 'ON' : 'OFF'}</Text>
+        <TouchableOpacity
+          style={[styles.toggleButton, settings.enableColor && styles.toggleButtonActive]}
+          onPress={() => updateSetting('enableColor', !settings.enableColor)}
+        >
+          <Text style={[styles.toggleButtonText, settings.enableColor && styles.toggleButtonTextActive]}>
+            {settings.enableColor ? 'ON' : 'OFF'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Warning if both modalities are disabled */}
-      {!settings.enablePosition && !settings.enableAudio && (
+      {!settings.enablePosition && !settings.enableAudio && !settings.enableColor && (
         <View style={styles.warningContainer}>
           <Text style={styles.warningText}>⚠️ At least one modality must be enabled!</Text>
         </View>
@@ -967,7 +1001,7 @@ const GameGrid = ({ gridSize, activeCell, anyButtonPressed }) => {
               top: Math.floor(activeCell.position / gridSize) * cellSize,
               width: cellSize,
               height: cellSize,
-              backgroundColor: activeCell.color,
+              backgroundColor: activeCell.color || GAME_COLOR,
               opacity: anyButtonPressed ? 1 : activeCellAnimation.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0.3, 1],
@@ -1009,9 +1043,17 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
   const [audioFN, setAudioFalseNegatives] = useState(0);
   const [audioUserResponses, setAudioUserResponses] = useState([]);
 
+  // Color scoring variables
+  const [colorTP, setColorTruePositives] = useState(0);
+  const [colorFP, setColorFalsePositives] = useState(0);
+  const [colorTN, setColorTrueNegatives] = useState(0);
+  const [colorFN, setColorFalseNegatives] = useState(0);
+  const [colorUserResponses, setColorUserResponses] = useState([]);
+
   // Button press states
   const [positionButtonPressed, setPositionButtonPressed] = useState(false);
   const [audioButtonPressed, setAudioButtonPressed] = useState(false);
+  const [colorButtonPressed, setColorButtonPressed] = useState(false);
   const [anyButtonPressed, setAnyButtonPressed] = useState(false);
 
   // Audio state
@@ -1081,19 +1123,23 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
 
         let newPosition;
         let newLetter;
+        let newColor;
 
         setGameHistory(prev => {
           let newPosition;
           let newLetter;
+          let newColor;
 
           if (newCount <= settings.currentLevel) {
             // First n trials: uniform random
             newPosition = settings.enablePosition ? Math.floor(Math.random() * (settings.gridSize * settings.gridSize)) : null;
             newLetter = settings.enableAudio ? GAME_LETTERS[Math.floor(Math.random() * GAME_LETTERS.length)] : null;
+            newColor = settings.enableColor ? GAME_COLORS[Math.floor(Math.random() * GAME_COLORS.length)] : null;
           } else {
             // Subsequent trials: controlled probability
             const random = Math.random();
             const letterRandom = Math.random();
+            const colorRandom = Math.random();
 
             // Position generation with controlled probability
             if (settings.enablePosition) {
@@ -1131,11 +1177,29 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
             } else {
               newLetter = null;
             }
+
+            // Color generation with controlled probability
+            if (settings.enableColor) {
+              const nBackStimulus = prev[newCount - settings.currentLevel - 1];
+              if (colorRandom < settings.matchProbability) {
+                // With probability p, select the same color as n trials ago
+                newColor = nBackStimulus.color;
+              } else {
+                // With probability 1-p, select uniform random color that is NOT the n-back color
+                let randomColor;
+                do {
+                  randomColor = GAME_COLORS[Math.floor(Math.random() * GAME_COLORS.length)];
+                } while (randomColor === nBackStimulus.color);
+                newColor = randomColor;
+              }
+            } else {
+              newColor = null;
+            }
           }
 
           const newStimulus = {
             position: newPosition,
-            color: GAME_COLOR,
+            color: newColor,
             letter: newLetter,
             trialNumber: newCount
           };
@@ -1168,6 +1232,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
     if (trialCount > 0) {
       setPositionButtonPressed(false);
       setAudioButtonPressed(false);
+      setColorButtonPressed(false);
       setAnyButtonPressed(false);
     }
   }, [trialCount]);
@@ -1210,12 +1275,32 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
     setAnyButtonPressed(true);
   };
 
+  const handleColorMatch = () => {
+    if (trialCount <= settings.currentLevel) return; // Can't match until we have enough trials
+
+    const currentStimulus = gameHistory[trialCount - 1];
+    const nBackStimulus = gameHistory[trialCount - 1 - settings.currentLevel];
+    const isActuallyMatch = currentStimulus && nBackStimulus && currentStimulus.color === nBackStimulus.color;
+
+    // Record user response (they pressed the button)
+    const response = {
+      trialNumber: trialCount,
+      userPressed: true,
+      wasActuallyMatch: isActuallyMatch
+    };
+    console.log('Color match pressed - Trial:', trialCount, 'Actually match:', isActuallyMatch);
+    setColorUserResponses(prev => [...prev, response]);
+    setColorButtonPressed(true);
+    setAnyButtonPressed(true);
+  };
+
   // Calculate final scores when game ends
   useEffect(() => {
     if (!isGameActive && gameHistory.length > 0 && !levelChangeProcessed.current) {
       // Calculate scores first (before resetting)
       let tempPositionTP = 0, tempPositionFP = 0, tempPositionTN = 0, tempPositionFN = 0;
       let tempAudioTP = 0, tempAudioFP = 0, tempAudioTN = 0, tempAudioFN = 0;
+      let tempColorTP = 0, tempColorFP = 0, tempColorTN = 0, tempColorFN = 0;
 
       // Calculate position scores for all trials where matching is possible (only if position is enabled)
       if (settings.enablePosition) {
@@ -1261,12 +1346,34 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         }
       }
 
+      // Calculate color scores for all trials where matching is possible (only if color is enabled)
+      if (settings.enableColor) {
+        console.log('Color responses:', colorUserResponses);
+        for (let i = settings.currentLevel; i < gameHistory.length; i++) {
+          const currentStimulus = gameHistory[i];
+          const nBackStimulus = gameHistory[i - settings.currentLevel];
+          const isActuallyMatch = currentStimulus && nBackStimulus && currentStimulus.color === nBackStimulus.color;
+
+          const userResponded = colorUserResponses.some(response => response.trialNumber === i + 1);
+
+          if (isActuallyMatch && userResponded) {
+            tempColorTP++;
+          } else if (isActuallyMatch && !userResponded) {
+            tempColorFN++;
+          } else if (!isActuallyMatch && userResponded) {
+            tempColorFP++;
+          } else if (!isActuallyMatch && !userResponded) {
+            tempColorTN++;
+          }
+        }
+      }
+
       // Update level based on performance (using temporary scores)
-      const totalTrials = tempPositionTP + tempPositionTN + tempPositionFP + tempPositionFN + tempAudioTP + tempAudioTN + tempAudioFP + tempAudioFN;
+      const totalTrials = tempPositionTP + tempPositionTN + tempPositionFP + tempPositionFN + tempAudioTP + tempAudioTN + tempAudioFP + tempAudioFN + tempColorTP + tempColorTN + tempColorFP + tempColorFN;
 
       let combinedAccuracy;
       if (totalTrials > 0) {
-        combinedAccuracy = ((tempPositionTP + tempPositionTN + tempAudioTP + tempAudioTN) / totalTrials) * 100;
+        combinedAccuracy = ((tempPositionTP + tempPositionTN + tempAudioTP + tempAudioTN + tempColorTP + tempColorTN) / totalTrials) * 100;
       } else {
         // No trials where matching was possible (N=L case)
         // Treat as perfect accuracy since player couldn't make mistakes
@@ -1304,6 +1411,10 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
       setAudioFalsePositives(tempAudioFP);
       setAudioTrueNegatives(tempAudioTN);
       setAudioFalseNegatives(tempAudioFN);
+      setColorTruePositives(tempColorTP);
+      setColorFalsePositives(tempColorFP);
+      setColorTrueNegatives(tempColorTN);
+      setColorFalseNegatives(tempColorFN);
 
       // Save game statistics
       const gameStats = {
@@ -1318,6 +1429,10 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         audioFP: tempAudioFP,
         audioTN: tempAudioTN,
         audioFN: tempAudioFN,
+        colorTP: tempColorTP,
+        colorFP: tempColorFP,
+        colorTN: tempColorTN,
+        colorFN: tempColorFN,
         totalTrials: totalTrials,
         gridSize: settings.gridSize,
         trialDelay: settings.trialDelay,
@@ -1325,11 +1440,12 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         matchProbability: settings.matchProbability,
         enablePosition: settings.enablePosition,
         enableAudio: settings.enableAudio,
+        enableColor: settings.enableColor,
       };
 
       saveGameStats(gameStats);
     }
-  }, [isGameActive, gameHistory, userResponses, audioUserResponses, settings.currentLevel, settings.winThreshold, settings.lossThreshold, settings.enablePosition, settings.enableAudio]);
+  }, [isGameActive, gameHistory, userResponses, audioUserResponses, colorUserResponses, settings.currentLevel, settings.winThreshold, settings.lossThreshold, settings.enablePosition, settings.enableAudio, settings.enableColor]);
 
   const totalTrialsWithMatching = Math.max(0, settings.gameLength - settings.currentLevel);
 
@@ -1362,10 +1478,10 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
 
           {/* Win/Loss Result */}
           {(() => {
-            const totalTrials = positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN;
+            const totalTrials = positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN + colorTP + colorTN + colorFP + colorFN;
             let combinedAccuracy;
             if (totalTrials > 0) {
-              combinedAccuracy = ((positionTP + positionTN + audioTP + audioTN) / totalTrials) * 100;
+              combinedAccuracy = ((positionTP + positionTN + audioTP + audioTN + colorTP + colorTN) / totalTrials) * 100;
             } else {
               // No trials where matching was possible (N=L case)
               // Treat as perfect accuracy since player couldn't make mistakes
@@ -1425,6 +1541,7 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                 setCurrentLetter(null);
                 setUserResponses([]);
                 setAudioUserResponses([]);
+                setColorUserResponses([]);
                 setTruePositives(0);
                 setFalsePositives(0);
                 setTrueNegatives(0);
@@ -1433,8 +1550,13 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                 setAudioFalsePositives(0);
                 setAudioTrueNegatives(0);
                 setAudioFalseNegatives(0);
+                setColorTruePositives(0);
+                setColorFalsePositives(0);
+                setColorTrueNegatives(0);
+                setColorFalseNegatives(0);
                 setPositionButtonPressed(false);
                 setAudioButtonPressed(false);
+                setColorButtonPressed(false);
                 setAnyButtonPressed(false);
                 levelChangeProcessed.current = false;
               }}
@@ -1506,12 +1628,36 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                 </View>
               )}
 
+              {settings.enableColor && (
+                <View style={styles.confusionMatrixContainer}>
+                  <Text style={styles.matrixTitle}>Color</Text>
+                  <View style={styles.confusionMatrix}>
+                    <View style={styles.matrixHeaderRow}>
+                      <Text style={styles.matrixHeaderCell}></Text>
+                      <Text style={styles.matrixHeaderCell}>Actual: Match</Text>
+                      <Text style={styles.matrixHeaderCell}>Actual: No Match</Text>
+                    </View>
+                    <View style={styles.matrixRow}>
+                      <Text style={styles.matrixRowHeader}>You: Match</Text>
+                      <Text style={styles.matrixCell}>{colorTP}</Text>
+                      <Text style={styles.matrixCell}>{colorFP}</Text>
+                    </View>
+                    <View style={styles.matrixRow}>
+                      <Text style={styles.matrixRowHeader}>You: No Match</Text>
+                      <Text style={styles.matrixCell}>{colorFN}</Text>
+                      <Text style={styles.matrixCell}>{colorTN}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
               <Text style={styles.resultsTitle}>Performance Statistics</Text>
               <View style={styles.statsTable}>
                 <View style={styles.statsHeaderRow}>
                   <Text style={styles.statsHeaderCell}>Metric</Text>
                   {settings.enableAudio && <Text style={styles.statsHeaderCell}>Audio</Text>}
                   {settings.enablePosition && <Text style={styles.statsHeaderCell}>Visual</Text>}
+                  {settings.enableColor && <Text style={styles.statsHeaderCell}>Color</Text>}
                   <Text style={styles.statsHeaderCell}>Combined</Text>
                 </View>
                 <View style={styles.statsRow}>
@@ -1526,8 +1672,13 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                       {positionTP + positionTN + positionFP + positionFN > 0 ? ((positionTP + positionTN) / (positionTP + positionTN + positionFP + positionFN) * 100).toFixed(0) : '0'}%
                     </Text>
                   )}
+                  {settings.enableColor && (
+                    <Text style={styles.statsCell}>
+                      {colorTP + colorTN + colorFP + colorFN > 0 ? ((colorTP + colorTN) / (colorTP + colorTN + colorFP + colorFN) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
                   <Text style={styles.statsCell}>
-                    {positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN > 0 ? ((positionTP + positionTN + audioTP + audioTN) / (positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN) * 100).toFixed(0) : '0'}%
+                    {positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN + colorTP + colorTN + colorFP + colorFN > 0 ? ((positionTP + positionTN + audioTP + audioTN + colorTP + colorTN) / (positionTP + positionTN + positionFP + positionFN + audioTP + audioTN + audioFP + audioFN + colorTP + colorTN + colorFP + colorFN) * 100).toFixed(0) : '0'}%
                   </Text>
                 </View>
                 <View style={styles.statsRow}>
@@ -1542,8 +1693,13 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                       {positionTP + positionFN > 0 ? (positionTP / (positionTP + positionFN) * 100).toFixed(0) : '0'}%
                     </Text>
                   )}
+                  {settings.enableColor && (
+                    <Text style={styles.statsCell}>
+                      {colorTP + colorFN > 0 ? (colorTP / (colorTP + colorFN) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
                   <Text style={styles.statsCell}>
-                    {positionTP + audioTP + positionFN + audioFN > 0 ? ((positionTP + audioTP) / (positionTP + audioTP + positionFN + audioFN) * 100).toFixed(0) : '0'}%
+                    {positionTP + audioTP + colorTP + positionFN + audioFN + colorFN > 0 ? ((positionTP + audioTP + colorTP) / (positionTP + audioTP + colorTP + positionFN + audioFN + colorFN) * 100).toFixed(0) : '0'}%
                   </Text>
                 </View>
                 <View style={styles.statsRow}>
@@ -1558,8 +1714,13 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                       {positionTN + positionFP > 0 ? (positionTN / (positionTN + positionFP) * 100).toFixed(0) : '0'}%
                     </Text>
                   )}
+                  {settings.enableColor && (
+                    <Text style={styles.statsCell}>
+                      {colorTN + colorFP > 0 ? (colorTN / (colorTN + colorFP) * 100).toFixed(0) : '0'}%
+                    </Text>
+                  )}
                   <Text style={styles.statsCell}>
-                    {positionTN + audioTN + positionFP + audioFP > 0 ? ((positionTN + audioTN) / (positionTN + audioTN + positionFP + audioFP) * 100).toFixed(0) : '0'}%
+                    {positionTN + audioTN + colorTN + positionFP + audioFP + colorFP > 0 ? ((positionTN + audioTN + colorTN) / (positionTN + audioTN + colorTN + positionFP + audioFP + colorFP) * 100).toFixed(0) : '0'}%
                   </Text>
                 </View>
               </View>
@@ -1592,11 +1753,13 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
       </TouchableOpacity>
       <View style={styles.gameContent}>
         <Text style={styles.trialText}>Trial {trialCount}/{settings.gameLength}</Text>
-        {currentLetter && (
-          <Text style={styles.letterText}>Letter: {currentLetter}</Text>
-        )}
         {settings.enablePosition && (
           <GameGrid gridSize={settings.gridSize} activeCell={activeCell} anyButtonPressed={anyButtonPressed} />
+        )}
+        {settings.enableColor && !settings.enablePosition && activeCell && (
+          <View style={styles.colorSquareContainer}>
+            <View style={[styles.colorSquare, { backgroundColor: activeCell.color }]} />
+          </View>
         )}
         <View style={styles.buttonContainer}>
           {settings.enablePosition && (
@@ -1623,6 +1786,19 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
               disabled={trialCount <= settings.currentLevel}
             >
               <Text style={styles.buttonText}>Audio</Text>
+            </TouchableOpacity>
+          )}
+          {settings.enableColor && (
+            <TouchableOpacity
+              style={[
+                styles.colorButton,
+                trialCount <= settings.currentLevel && styles.disabledButton,
+                colorButtonPressed && styles.pressedButton
+              ]}
+              onPress={handleColorMatch}
+              disabled={trialCount <= settings.currentLevel}
+            >
+              <Text style={styles.buttonText}>Color</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1736,14 +1912,18 @@ export default function App() {
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: '#f0f0f0',
     padding: 20,
   },
   screenContentContainer: {
     alignItems: 'center',
     padding: 20,
+  },
+  instructionsContentContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    paddingBottom: 40,
   },
   statsScreenContainer: {
     flex: 1,
@@ -2543,5 +2723,41 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 5,
     textAlign: 'center',
+  },
+  colorIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  colorText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginRight: 5,
+  },
+  colorSwatch: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+  },
+  colorSquareContainer: {
+    width: 100,
+    height: 100,
+    borderWidth: 2,
+    borderColor: '#333',
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  colorSquare: {
+    width: 80,
+    height: 80,
+    borderRadius: 5,
+  },
+  startScreenContainer: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
