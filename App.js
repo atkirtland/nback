@@ -1025,8 +1025,8 @@ const GameGrid = ({ gridSize, activeCell, anyButtonPressed, positionEnabled = tr
     if (activeCell && !anyButtonPressed) {
       const currentPosition = positionEnabled ? activeCell.position : 0;
       
-      // Only animate if position is enabled AND position actually changed
-      if (positionEnabled && (lastPosition.current === null || lastPosition.current !== currentPosition)) {
+      // Always animate when a new trial occurs, regardless of position change
+      if (positionEnabled) {
         // Reset animation
         activeCellAnimation.setValue(0);
 
@@ -1036,7 +1036,7 @@ const GameGrid = ({ gridSize, activeCell, anyButtonPressed, positionEnabled = tr
           duration: 200,
           useNativeDriver: false,
         }).start();
-      } else if (!positionEnabled) {
+      } else {
         // When position is disabled, just set to final state without animation
         activeCellAnimation.setValue(1);
       }
@@ -2112,13 +2112,14 @@ export default function App() {
           </Tab.Screen>
           <Tab.Screen
             name="Instructions"
-            component={InstructionsScreen}
             options={{
               tabBarIcon: ({ focused }) => (
                 <TabIcon name="Help" focused={focused} />
               ),
             }}
-          />
+          >
+            {() => <InstructionsScreen />}
+          </Tab.Screen>
           <Tab.Screen
             name="Statistics"
             options={{
