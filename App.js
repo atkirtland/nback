@@ -1978,7 +1978,26 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         <Text style={styles.exitButtonText}>×</Text>
       </TouchableOpacity>
       <View style={styles.gameContent}>
-        <Text style={styles.trialText}>Trial {trialCount}/{settings.gameTrials + settings.currentLevel}</Text>
+        <View style={styles.trialDisplayContainer}>
+          {trialCount <= settings.currentLevel ? (
+            <View style={styles.countdownContainer}>
+              <Text style={styles.countdownText}>Get Ready!</Text>
+              <View style={styles.dotContainer}>
+                {Array.from({ length: settings.currentLevel }, (_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.countdownDot,
+                      i < (settings.currentLevel - trialCount) && styles.countdownDotFilled
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.trialText}>Trial {trialCount - settings.currentLevel}/{settings.gameTrials}</Text>
+          )}
+        </View>
         {settings.enablePosition && (
           <GameGrid gridSize={settings.gridSize} activeCell={activeCell} anyButtonPressed={anyButtonPressed} positionEnabled={true} />
         )}
@@ -2278,10 +2297,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
   },
+  trialDisplayContainer: {
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   trialText: {
     fontSize: 18,
     color: '#666',
-    marginBottom: 20,
+  },
+  countdownContainer: {
+    alignItems: 'center',
+  },
+  countdownText: {
+    fontSize: 20,
+    color: '#333',
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  dotContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  countdownDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#e0e0e0',
+    marginHorizontal: 4,
+  },
+  countdownDotFilled: {
+    backgroundColor: '#32cd32',
   },
   letterText: {
     fontSize: 16,
