@@ -42,6 +42,8 @@ const DEFAULT_SETTINGS = {
   matchProbability: 0.3, // 30% probability of matches
   winThreshold: 90, // percentage threshold for winning (default 90%)
   lossThreshold: 70, // percentage threshold for losing (default 70%)
+  consecutiveWinsForLevelUp: 3, // number of consecutive wins needed to level up
+  consecutiveLossesForLevelDown: 2, // number of consecutive losses needed to level down
   enablePosition: true, // enable position modality
   enableAudio: true, // enable audio modality
   enableColor: false, // disable color modality
@@ -252,6 +254,19 @@ const ImportModal = ({ visible, onClose, onImport }) => {
   );
 };
 
+// --- Helper Functions ---
+const getConsecutiveCount = (results, targetResult) => {
+  let count = 0;
+  for (let i = results.length - 1; i >= 0; i--) {
+    if (results[i] === targetResult) {
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+};
+
 // --- Helper Components ---
 const TabIcon = ({ name, focused }) => {
   let iconName;
@@ -311,6 +326,21 @@ const StartScreen = ({ settings, onStartGame }) => {
       <Text style={styles.headerText}>Current Level: {settings.currentLevel}-Back</Text>
       <Text style={styles.bodyText}>Grid Size: {settings.gridSize}x{settings.gridSize}</Text>
       <Text style={styles.bodyText}>Modalities: {getModalityText()}</Text>
+      
+      {/* Level Progression Info */}
+      <View style={styles.levelProgressionInfo}>
+        <Text style={styles.levelProgressionTitle}>Level Progression</Text>
+        <Text style={styles.levelProgressionText}>
+          • Level Up: {settings.consecutiveWinsForLevelUp} consecutive wins
+        </Text>
+        <Text style={styles.levelProgressionText}>
+          • Level Down: {settings.consecutiveLossesForLevelDown} consecutive losses
+        </Text>
+        <Text style={styles.levelProgressionNote}>
+          Session progress resets when you exit to menu
+        </Text>
+      </View>
+      
       <TouchableOpacity 
         style={[styles.startButton, (!settings.enablePosition && !settings.enableAudio && !settings.enableColor && !settings.enableShape) && styles.disabledButton]} 
         onPress={handleStartGame}
@@ -872,6 +902,42 @@ const SettingsScreen = ({ settings, onSettingsChange, onDataUpdate }) => {
         </View>
       </View>
 
+      <View style={styles.settingItem}>
+        <Text style={styles.settingLabel}>Consecutive Wins for Level Up: {settings.consecutiveWinsForLevelUp}</Text>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={styles.smallButton}
+            onPress={() => updateSetting('consecutiveWinsForLevelUp', Math.max(1, settings.consecutiveWinsForLevelUp - 1))}
+          >
+            <Text style={styles.buttonText}>-</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.smallButton}
+            onPress={() => updateSetting('consecutiveWinsForLevelUp', Math.min(10, settings.consecutiveWinsForLevelUp + 1))}
+          >
+            <Text style={styles.buttonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.settingItem}>
+        <Text style={styles.settingLabel}>Consecutive Losses for Level Down: {settings.consecutiveLossesForLevelDown}</Text>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={styles.smallButton}
+            onPress={() => updateSetting('consecutiveLossesForLevelDown', Math.max(1, settings.consecutiveLossesForLevelDown - 1))}
+          >
+            <Text style={styles.buttonText}>-</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.smallButton}
+            onPress={() => updateSetting('consecutiveLossesForLevelDown', Math.min(10, settings.consecutiveLossesForLevelDown + 1))}
+          >
+            <Text style={styles.buttonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Modality Settings */}
       <View style={styles.settingItem}>
         <Text style={styles.settingLabel}>Position Modality: {settings.enablePosition ? 'ON' : 'OFF'}</Text>
@@ -1113,6 +1179,12 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
   const [gameHistory, setGameHistory] = useState([]);
   const [isGameActive, setIsGameActive] = useState(true);
 
+  // Session tracking state
+  const [sessionWins, setSessionWins] = useState(0);
+  const [sessionLosses, setSessionLosses] = useState(0);
+  const [sessionNeutrals, setSessionNeutrals] = useState(0);
+  const [sessionResults, setSessionResults] = useState([]); // Array of 'win', 'loss', 'neutral'
+
 
 
   // N-back scoring variables
@@ -1165,6 +1237,10 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
   
   // Track the next level for display
   const [nextLevel, setNextLevel] = useState(null);
+  
+  // Track if a level change occurred in this game
+  const [levelChangedThisGame, setLevelChangedThisGame] = useState(false);
+  const [levelChangeDirection, setLevelChangeDirection] = useState(null); // 'up' or 'down'
 
   useEffect(() => {
     const loadAudioSounds = () => {
@@ -1543,26 +1619,73 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         combinedAccuracy = 100;
       }
 
-      let newLevel = settings.currentLevel;
+      // Determine game result
+      let gameResult;
       if (combinedAccuracy >= settings.winThreshold) {
-        newLevel = Math.min(8, settings.currentLevel + 1); // Level up, max 8
+        gameResult = 'win';
       } else if (combinedAccuracy <= settings.lossThreshold) {
-        newLevel = Math.max(1, settings.currentLevel - 1); // Level down, min 1
+        gameResult = 'loss';
+      } else {
+        gameResult = 'neutral';
+      }
+
+      // Update session tracking
+      const newSessionResults = [...sessionResults, gameResult];
+      setSessionResults(newSessionResults);
+      
+      const newSessionWins = newSessionResults.filter(result => result === 'win').length;
+      const newSessionLosses = newSessionResults.filter(result => result === 'loss').length;
+      const newSessionNeutrals = newSessionResults.filter(result => result === 'neutral').length;
+      
+      setSessionWins(newSessionWins);
+      setSessionLosses(newSessionLosses);
+      setSessionNeutrals(newSessionNeutrals);
+
+      // Check for level progression based on consecutive wins/losses
+      let newLevel = settings.currentLevel;
+      let levelChanged = false;
+
+      // Check for level up (consecutive wins)
+      if (newSessionResults.length >= settings.consecutiveWinsForLevelUp) {
+        // Check if the last N games were all wins
+        const recentResults = newSessionResults.slice(-settings.consecutiveWinsForLevelUp);
+        if (recentResults.every(result => result === 'win')) {
+          newLevel = Math.min(8, settings.currentLevel + 1); // Level up, max 8
+          levelChanged = true;
+          // Reset session tracking after level up
+          setSessionWins(0);
+          setSessionLosses(0);
+          setSessionNeutrals(0);
+          setSessionResults([]);
+        }
+      }
+
+      // Check for level down (consecutive losses)
+      if (newSessionResults.length >= settings.consecutiveLossesForLevelDown && !levelChanged) {
+        // Check if the last N games were all losses
+        const recentResults = newSessionResults.slice(-settings.consecutiveLossesForLevelDown);
+        if (recentResults.every(result => result === 'loss')) {
+          newLevel = Math.max(1, settings.currentLevel - 1); // Level down, min 1
+          levelChanged = true;
+          // Reset session tracking after level down
+          setSessionWins(0);
+          setSessionLosses(0);
+          setSessionNeutrals(0);
+          setSessionResults([]);
+        }
       }
 
       // Store the next level for display
       setNextLevel(newLevel);
 
-      if (newLevel !== settings.currentLevel) {
+      if (levelChanged) {
         let updatedSettings = { ...settings, currentLevel: newLevel };
-
-        // // Ensure game length is at least equal to the new level
-        // if (updatedSettings.gameLength < newLevel) {
-        //   updatedSettings = { ...updatedSettings, gameLength: newLevel };
-        // }
-
         onSettingsChange(updatedSettings);
         saveSettings(updatedSettings);
+        
+        // Track the level change for display
+        setLevelChangedThisGame(true);
+        setLevelChangeDirection(newLevel > settings.currentLevel ? 'up' : 'down');
       }
 
       // Mark that we've processed the level change
@@ -1663,23 +1786,23 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
               combinedAccuracy = 100;
             }
 
-            let resultText, resultColor, resultIcon, levelChange;
+            let resultText, resultColor, resultIcon, gameResult;
 
             if (combinedAccuracy >= settings.winThreshold) {
-              resultText = '🎉 YOU WIN! 🎉';
+              resultText = '🎉 YOU WIN!';
               resultColor = '#27ae60';
               resultIcon = '🏆';
-              levelChange = '+1';
+              gameResult = 'win';
             } else if (combinedAccuracy <= settings.lossThreshold) {
-              resultText = '😔 YOU LOSE 😔';
+              resultText = '😔 YOU LOSE';
               resultColor = '#e74c3c';
               resultIcon = '💔';
-              levelChange = '-1';
+              gameResult = 'loss';
             } else {
-              resultText = '🤔 NEUTRAL 🤔';
+              resultText = '🤔 NEUTRAL';
               resultColor = '#f39c12';
               resultIcon = '⚖️';
-              levelChange = '0';
+              gameResult = 'neutral';
             }
 
             return (
@@ -1692,28 +1815,89 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                 <Text style={styles.winLossThresholds}>
                   Win: {settings.winThreshold}% | Loss: {settings.lossThreshold}%
                 </Text>
-                {levelChange !== '0' && (
-                  <Text style={styles.levelChangeText}>
-                    Level {levelChange === '+1' ? 'Up!' : 'Down!'}
-                  </Text>
-                )}
-                {nextLevel && (
-                  <Text style={styles.nextLevelText}>
-                    Next Game: {nextLevel}-Back
-                  </Text>
+                
+                {/* Session Progress */}
+                <View style={styles.sessionProgressContainer}>
+                  <Text style={styles.sessionProgressTitle}>Session Progress</Text>
+                  <View style={styles.sessionProgressRow}>
+                    <Text style={styles.sessionProgressLabel}>Total Wins:</Text>
+                    <Text style={[styles.sessionProgressValue, { color: '#27ae60' }]}>
+                      {sessionWins}
+                    </Text>
+                  </View>
+                  <View style={styles.sessionProgressRow}>
+                    <Text style={styles.sessionProgressLabel}>Total Losses:</Text>
+                    <Text style={[styles.sessionProgressValue, { color: '#e74c3c' }]}>
+                      {sessionLosses}
+                    </Text>
+                  </View>
+                  <View style={styles.sessionProgressRow}>
+                    <Text style={styles.sessionProgressLabel}>Total Neutrals:</Text>
+                    <Text style={[styles.sessionProgressValue, { color: '#f39c12' }]}>
+                      {sessionNeutrals}
+                    </Text>
+                  </View>
+                  
+                  {/* Consecutive progress */}
+                  {(() => {
+                    const consecutiveWins = getConsecutiveCount(sessionResults, 'win');
+                    const consecutiveLosses = getConsecutiveCount(sessionResults, 'loss');
+                    
+                    return (
+                      <>
+                        <View style={styles.sessionProgressRow}>
+                          <Text style={styles.sessionProgressLabel}>Consecutive Wins:</Text>
+                          <Text style={[styles.sessionProgressValue, { color: '#27ae60' }]}>
+                            {consecutiveWins}/{settings.consecutiveWinsForLevelUp}
+                          </Text>
+                        </View>
+                        <View style={styles.sessionProgressRow}>
+                          <Text style={styles.sessionProgressLabel}>Consecutive Losses:</Text>
+                          <Text style={[styles.sessionProgressValue, { color: '#e74c3c' }]}>
+                            {consecutiveLosses}/{settings.consecutiveLossesForLevelDown}
+                          </Text>
+                        </View>
+                        
+
+                      </>
+                    );
+                  })()}
+                </View>
+
+                {levelChangedThisGame && (
+                  <View style={styles.levelChangeNotification}>
+                    <Text style={styles.levelChangeNotificationTitle}>
+                      {levelChangeDirection === 'up' ? '🎉 LEVEL UP! 🎉' : '📉 LEVEL DOWN'}
+                    </Text>
+                    <Text style={styles.levelChangeNotificationText}>
+                      {levelChangeDirection === 'up'
+                        ? `You've advanced to Level ${nextLevel}-Back!`
+                        : `You've been moved down to Level ${nextLevel}-Back.`
+                      }
+                    </Text>
+                  </View>
                 )}
               </View>
             );
           })()}
 
           <View style={styles.gameOverButtons}>
-            <TouchableOpacity style={styles.startButton} onPress={onExitGame}>
+            <TouchableOpacity style={styles.startButton} onPress={() => {
+              // Reset session tracking when exiting to menu
+              setSessionWins(0);
+              setSessionLosses(0);
+              setSessionNeutrals(0);
+              setSessionResults([]);
+              setLevelChangedThisGame(false);
+              setLevelChangeDirection(null);
+              onExitGame();
+            }}>
               <Text style={styles.buttonText}>Back to Menu</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.playAgainButton}
               onPress={() => {
-                // Reset game state
+                // Reset game state (but keep session tracking)
                 setTrialCount(0);
                 setGameHistory([]);
                 setIsGameActive(true);
@@ -3030,6 +3214,120 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 5,
+  },
+
+  // Session Progress Styles
+  sessionProgressContainer: {
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 15,
+    width: '100%',
+  },
+  sessionProgressTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  sessionProgressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  sessionProgressLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  sessionProgressValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  levelUpReadyText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#27ae60',
+    textAlign: 'center',
+    marginTop: 10,
+    padding: 8,
+    backgroundColor: '#d5f4e6',
+    borderRadius: 5,
+  },
+  levelDownReadyText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#e74c3c',
+    textAlign: 'center',
+    marginTop: 10,
+    padding: 8,
+    backgroundColor: '#fadbd8',
+    borderRadius: 5,
+  },
+
+  // Level Change Notification Styles
+  levelChangeNotification: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 15,
+    width: '100%',
+    borderWidth: 2,
+    borderColor: '#1e90ff',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  levelChangeNotificationTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1e90ff',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  levelChangeNotificationText: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+
+  // Level Progression Info Styles
+  levelProgressionInfo: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    marginVertical: 20,
+    width: '90%',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  levelProgressionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  levelProgressionText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 5,
+    textAlign: 'left',
+  },
+  levelProgressionNote: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 10,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 
   startScreenContainer: {
