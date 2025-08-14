@@ -1660,8 +1660,8 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
         }
       }
 
-      // Check for level down (consecutive losses)
-      if (newSessionResults.length >= settings.consecutiveLossesForLevelDown && !levelChanged) {
+      // Check for level down (consecutive losses) - only if not already at level 1
+      if (settings.currentLevel > 1 && newSessionResults.length >= settings.consecutiveLossesForLevelDown && !levelChanged) {
         // Check if the last N games were all losses
         const recentResults = newSessionResults.slice(-settings.consecutiveLossesForLevelDown);
         if (recentResults.every(result => result === 'loss')) {
@@ -1851,12 +1851,14 @@ const GameMode = ({ settings, onExitGame, onSettingsChange }) => {
                             {consecutiveWins}/{settings.consecutiveWinsForLevelUp}
                           </Text>
                         </View>
-                        <View style={styles.sessionProgressRow}>
-                          <Text style={styles.sessionProgressLabel}>Consecutive Losses:</Text>
-                          <Text style={[styles.sessionProgressValue, { color: '#e74c3c' }]}>
-                            {consecutiveLosses}/{settings.consecutiveLossesForLevelDown}
-                          </Text>
-                        </View>
+                        {settings.currentLevel > 1 && (
+                          <View style={styles.sessionProgressRow}>
+                            <Text style={styles.sessionProgressLabel}>Consecutive Losses:</Text>
+                            <Text style={[styles.sessionProgressValue, { color: '#e74c3c' }]}>
+                              {consecutiveLosses}/{settings.consecutiveLossesForLevelDown}
+                            </Text>
+                          </View>
+                        )}
                         
 
                       </>
