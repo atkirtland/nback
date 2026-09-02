@@ -1,19 +1,18 @@
-# N-back
+# N-Back for Android
 
-N-back project written by Cursor with human guidance. There's a bug with sound going out that I need to fix still, but I think it's probably the best open source n-back game so far.
+A native Android N-back training game built with Kotlin and Jetpack Compose.
 
-Features
-- modern design
-- quad n-back
-- adjustable difficulty and settings
-- auto-change difficulty with streaks in a session
-- backup and restore
-- stats screen with graphs
+Features include position, audio, color, and shape modalities; adjustable difficulty;
+automatic level progression; detailed scoring; progress charts; and JSON backup and restore.
 
-## images
+## Build
 
-![](game.jpg)
+Open the repository in Android Studio, or run:
 
-![](gameover.jpg)
+```sh
+./gradlew assembleDebug
+```
 
-![](stats.jpg)
+The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+
+The project requires JDK 17 and Android SDK 35.
