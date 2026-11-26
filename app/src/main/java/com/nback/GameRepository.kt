@@ -61,6 +61,9 @@ class GameRepository(private val context: Context) {
     }
 
     private fun parseSettings(json: JSONObject): GameSettings {
+        // Move the old default thresholds to the new scale; retain custom thresholds.
+        val migrateDefaults = !json.has("scoringMethod") &&
+            json.optInt("winThreshold", 90) == 90 && json.optInt("lossThreshold", 70) == 70
         val enabled = buildSet {
             if (json.optBoolean("enablePosition", true)) add(Modality.POSITION)
             if (json.optBoolean("enableAudio", true)) add(Modality.AUDIO)
@@ -73,8 +76,8 @@ class GameRepository(private val context: Context) {
             trialDelayMillis = (json.optDouble("trialDelay", 3.0) * 1000).toLong(),
             gameTrials = json.optInt("gameTrials", 20),
             matchProbability = json.optDouble("matchProbability", .3),
-            winThreshold = json.optInt("winThreshold", 90),
-            lossThreshold = json.optInt("lossThreshold", 70),
+            winThreshold = if (migrateDefaults) 80 else json.optInt("winThreshold", 80),
+            lossThreshold = if (migrateDefaults) 50 else json.optInt("lossThreshold", 50),
             consecutiveWinsForLevelUp = json.optInt("consecutiveWinsForLevelUp", 3),
             consecutiveLossesForLevelDown = json.optInt("consecutiveLossesForLevelDown", 2),
             enabledModalities = enabled,
@@ -82,6 +85,7 @@ class GameRepository(private val context: Context) {
     }
 
     private fun settingsJson(s: GameSettings) = JSONObject()
+        .put("scoringMethod", ScoringMethod.BRAIN_WORKSHOP.name)
         .put("currentLevel", s.currentLevel).put("gridSize", s.gridSize)
         .put("trialDelay", s.trialDelayMillis / 1000.0).put("gameTrials", s.gameTrials)
         .put("matchProbability", s.matchProbability).put("winThreshold", s.winThreshold)
@@ -112,12 +116,14 @@ class GameRepository(private val context: Context) {
                 ?: if (accuracy >= win) Outcome.WIN else if (accuracy <= loss) Outcome.LOSS else Outcome.NEUTRAL
             add(GameRecord(j.optString("date", isoNow()), j.optInt("difficulty", 2), accuracy, matrices,
                 j.optInt("gridSize", 3), (j.optDouble("trialDelay", 3.0) * 1000).toLong(),
-                j.optInt("gameTrials", 20), j.optDouble("matchProbability", .3), enabled, outcome, win, loss))
+                j.optInt("gameTrials", 20), j.optDouble("matchProbability", .3), enabled, outcome, win, loss,
+                runCatching { ScoringMethod.valueOf(j.optString("scoringMethod")) }.getOrDefault(ScoringMethod.LEGACY_ACCURACY)))
         }
     }
 
     private fun recordsJson(records: List<GameRecord>) = JSONArray().also { array -> records.forEach { r ->
         val j = JSONObject().put("date", r.date).put("difficulty", r.difficulty).put("accuracy", r.accuracy)
+            .put("scoringMethod", r.scoringMethod.name)
             .put("gridSize", r.gridSize).put("trialDelay", r.trialDelayMillis / 1000.0).put("gameTrials", r.gameTrials)
             .put("matchProbability", r.matchProbability).put("outcome", r.outcome.name.lowercase())
             .put("winThreshold", r.winThreshold).put("lossThreshold", r.lossThreshold)

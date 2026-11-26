@@ -102,6 +102,7 @@ private fun HelpScreen() = Page("How to play") {
     HelpCard("The N-Back task", "Remember each stimulus and respond when it matches the stimulus shown N trials earlier.")
     HelpCard("Modalities", "Position uses the grid, Audio uses spoken letters, Color uses the stimulus color, and Shape uses its shape. Enable any combination in Settings.")
     HelpCard("Respond", "Tap each matching modality during the current trial. You can select several modalities, but each can only be selected once. Do nothing when there is no match.")
+    HelpCard("Scoring", "Brain Workshop score = hits ÷ (hits + misses + false alarms). Counts are combined across enabled modalities. Correctly ignoring a non-match adds no points. If there are no hits, misses, or false alarms, the score is 0%.")
     HelpCard("Tip", "Start at 1-Back or 2-Back with one or two modalities, then increase difficulty as the pattern becomes comfortable.")
 }
 
@@ -157,24 +158,26 @@ private fun Result<*>.notify(context: Context, success: String, failure: String)
 @Composable
 private fun StatsScreen(settings: GameSettings, records: List<GameRecord>, clear: () -> Unit) {
     val filtered = records.filter { it.enabledModalities == settings.enabledModalities }
+    val scored = filtered.filter { it.scoringMethod == ScoringMethod.BRAIN_WORKSHOP }
     var sevenDays by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
-    val shown = if (!sevenDays) filtered else filtered.filter { parseDate(it.date) >= System.currentTimeMillis() - 7 * 86_400_000L }
+    val shown = if (!sevenDays) scored else scored.filter { parseDate(it.date) >= System.currentTimeMillis() - 7 * 86_400_000L }
     Page("Your progress") {
         Text(settings.enabledModalities.joinToString(" + ") { it.name.lowercase().replaceFirstChar(Char::uppercase) } + " mode", color = Blue)
         if (filtered.isEmpty()) Text("No games played with these modalities yet.") else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatCard("Games", filtered.size.toString(), Modifier.weight(1f)); StatCard("Highest", filtered.maxOf { it.difficulty }.toString(), Modifier.weight(1f)); StatCard("Average", "%.1f%%".format(filtered.map { it.accuracy }.average()), Modifier.weight(1f))
+                StatCard("Games", filtered.size.toString(), Modifier.weight(1f)); StatCard("Highest", filtered.maxOf { it.difficulty }.toString(), Modifier.weight(1f)); StatCard("Average score", if (scored.isEmpty()) "—" else "%.1f%%".format(scored.map { it.accuracy }.average()), Modifier.weight(1f))
             }
+            if (scored.size != filtered.size) Text("Averages and charts use Brain Workshop scores. Older games retain their original accuracy and outcomes.", style = MaterialTheme.typography.bodySmall)
             FilterChip(sevenDays, { sevenDays = !sevenDays }, { Text(if (sevenDays) "Last 7 days" else "All time") })
             if (shown.isNotEmpty()) {
                 ChartCard("Difficulty over time", shown.map { it.difficulty.toFloat() }, 1f, (shown.maxOf { it.difficulty } + 1).toFloat())
-                ChartCard("Accuracy over time", shown.map { it.accuracy.toFloat() }, 0f, 100f)
+                ChartCard("Score over time", shown.map { it.accuracy.toFloat() }, 0f, 100f)
             }
             Text("Recent games", style = MaterialTheme.typography.titleLarge)
             filtered.takeLast(10).asReversed().forEach { record ->
                 ElevatedCard(Modifier.fillMaxWidth()) { Row(Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) { Text(displayDate(record.date)); Text("${record.difficulty}-Back · %.1f%%".format(record.accuracy)) }
+                    Column(Modifier.weight(1f)) { Text(displayDate(record.date)); Text("${record.difficulty}-Back · %.1f%%".format(record.accuracy) + if (record.scoringMethod == ScoringMethod.LEGACY_ACCURACY) " legacy accuracy" else " score") }
                     Text(when (record.outcome) { Outcome.WIN -> "🏆 Win"; Outcome.LOSS -> "Loss"; Outcome.NEUTRAL -> "Neutral" }, fontWeight = FontWeight.Bold)
                 } }
             }
@@ -251,14 +254,15 @@ private fun ResultsScreen(state: GameUiState, s: GameSettings, exit: () -> Unit,
     Page("Game over") {
         ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(24.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(when (state.outcome) { Outcome.WIN -> "🏆 You win!"; Outcome.LOSS -> "You lose"; else -> "Neutral" }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("%.1f%% accuracy".format(score.accuracy), fontSize = 28.sp, color = Blue)
+            Text("%.1f%% score".format(score.scorePercent), fontSize = 28.sp, color = Blue)
+            Text("Hits ÷ (hits + misses + false alarms)", style = MaterialTheme.typography.bodySmall)
             Text("Win ${s.winThreshold}% · Loss ${s.lossThreshold}%")
             if (state.levelChange != 0) Text(if (state.levelChange > 0) "Level up to ${state.nextLevel}-Back" else "Level down to ${state.nextLevel}-Back", fontWeight = FontWeight.Bold)
         } }
         ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Session", fontWeight = FontWeight.Bold); Text("Wins ${state.session.wins} · Losses ${state.session.losses} · Neutral ${state.session.neutrals}") } }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedButton(exit, Modifier.weight(1f)) { Text("Menu") }; Button(again, Modifier.weight(1f)) { Text("Play again") } }
         TextButton({ details = !details }, Modifier.fillMaxWidth()) { Text(if (details) "Hide detailed statistics" else "Show detailed statistics") }
-        AnimatedVisibility(details) { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { score.matrices.forEach { (m, v) -> ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(m.name.lowercase().replaceFirstChar(Char::uppercase), fontWeight = FontWeight.Bold); Text("TP ${v.tp} · FP ${v.fp} · TN ${v.tn} · FN ${v.fn}"); Text("Accuracy %.0f%% · Sensitivity %.0f%% · Specificity %.0f%%".format(v.accuracy, v.sensitivity, v.specificity)) } } } } }
+        AnimatedVisibility(details) { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { score.matrices.forEach { (m, v) -> ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(m.name.lowercase().replaceFirstChar(Char::uppercase), fontWeight = FontWeight.Bold); Text("Hits ${v.tp} · Misses ${v.fn} · False alarms ${v.fp} · Correct rejections ${v.tn}"); Text("Score %.1f%% · Hit rate %.0f%% · Correct-rejection rate %.0f%%".format(v.scorePercent, v.sensitivity, v.specificity)) } } } } }
     }
 }
 

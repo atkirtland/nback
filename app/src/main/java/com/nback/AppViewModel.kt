@@ -119,8 +119,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         timer?.cancel()
         val score = e.score()
         val outcome = when {
-            score.accuracy >= e.settings.winThreshold -> Outcome.WIN
-            score.accuracy <= e.settings.lossThreshold -> Outcome.LOSS
+            score.scorePercent >= e.settings.winThreshold -> Outcome.WIN
+            score.scorePercent <= e.settings.lossThreshold -> Outcome.LOSS
             else -> Outcome.NEUTRAL
         }
         session = SessionProgress(session.outcomes + outcome)
@@ -133,9 +133,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             updateSettings(e.settings.copy(currentLevel = newLevel))
         }
         val record = GameRecord(
-            isoDate(), e.settings.currentLevel, score.accuracy, score.matrices, e.settings.gridSize,
+            isoDate(), e.settings.currentLevel, score.scorePercent, score.matrices, e.settings.gridSize,
             e.settings.trialDelayMillis, e.settings.gameTrials, e.settings.matchProbability,
             e.settings.enabledModalities, outcome, e.settings.winThreshold, e.settings.lossThreshold,
+            ScoringMethod.BRAIN_WORKSHOP,
         )
         viewModelScope.launch { repository.addRecord(record) }
         game.value = game.value?.copy(phase = GamePhase.FINISHED, result = score, outcome = outcome, session = session, levelChange = changed, nextLevel = newLevel)

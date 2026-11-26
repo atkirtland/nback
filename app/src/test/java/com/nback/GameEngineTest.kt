@@ -5,6 +5,30 @@ import org.junit.Test
 import kotlin.random.Random
 
 class GameEngineTest {
+    @Test fun perfectResponsesAcrossModalitiesEarnFullBrainWorkshopScore() {
+        val settings = GameSettings(currentLevel = 2, gameTrials = 20, enabledModalities = setOf(Modality.POSITION, Modality.AUDIO))
+        val engine = GameEngine(settings, Random(12))
+        repeat(settings.currentLevel) { engine.next() }
+        repeat(settings.gameTrials) { index ->
+            val stimulus = engine.next()
+            val previous = engine.history[index]
+            if (stimulus.position == previous.position) engine.respond(Modality.POSITION)
+            if (stimulus.letter == previous.letter) engine.respond(Modality.AUDIO)
+        }
+        val score = engine.score()
+        assertTrue(score.matrices.values.sumOf { it.tp } > 0)
+        assertEquals(100.0, score.scorePercent, 0.001)
+        assertEquals(40, score.total)
+    }
+
+    @Test fun neverRespondingScoresZeroDespiteCorrectRejections() {
+        val engine = GameEngine(GameSettings(currentLevel = 2, gameTrials = 20), Random(12))
+        repeat(22) { engine.next() }
+        val score = engine.score()
+        assertTrue(score.matrices.values.sumOf { it.tn } > 0)
+        assertEquals(0.0, score.scorePercent, 0.001)
+    }
+
     @Test fun createsExactlyWarmupsPlusScoredTrials() {
         val engine = GameEngine(GameSettings(currentLevel = 3, gameTrials = 7, enabledModalities = setOf(Modality.POSITION)), Random(1))
         repeat(10) { engine.next() }
